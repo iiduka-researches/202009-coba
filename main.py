@@ -1,57 +1,61 @@
+from typing import Any, Dict, Tuple, Union
+
 from experiment.cifar10 import ExperimentCIFAR10
 from experiment.imdb import ExperimentIMDb
 from experiment.mnist import ExperimentMNIST
 from experiment.stl10 import ExperimentSTL10
-from torch.optim import SGD, Adagrad, RMSprop
 from optimizer.adam import Adam
-from optimizer.cg_like_momentum import CGLikeMomentum
-from optimizer.cg_like_adam import CGLikeAdam
+from optimizer.conjugate.conjugate_momentum_adam import ConjugateMomentumAdam
+from optimizer.conjugate.coba import CoBA
+
+Optimizer = Union[Adam, CoBA, ConjugateMomentumAdam]
+OptimizerDict = Dict[str, Tuple[Any, Dict[str, Any]]]
 
 
-def prepare_optimizers(lr: float):
+def prepare_optimizers(lr: float) -> OptimizerDict:
     return dict(
-        Momentum_Existing=(SGD, dict(lr=lr, momentum=.9)),
-        AdaGrad_Existing=(Adagrad, dict(lr=lr)),
-        RMSProp_Existing=(RMSprop, dict(lr=lr)),
+        CMAdam_HS=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=False, cg_type='HS')),
+        CMAdam_FR=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=False, cg_type='FR')),
+        CMAdam_PRP=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=False, cg_type='PRP')),
+        CMAdam_DY=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=False, cg_type='DY')),
+        CMAdam_HZ=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=False, cg_type='HZ')),
+
+        CMAMSGrad_HS=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=True, cg_type='HS')),
+        CMAMSGrad_FR=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=True, cg_type='FR')),
+        CMAMSGrad_PRP=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=True, cg_type='PRP')),
+        CMAMSGrad_DY=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=True, cg_type='DY')),
+        CMAMSGrad_HZ=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=True, cg_type='HZ')),
+
+        CoBAdam_HS=(CoBA, dict(lr=lr, amsgrad=False, cg_type='HS')),
+        CoBAdam_FR=(CoBA, dict(lr=lr, amsgrad=False, cg_type='FR')),
+        CoBAdam_PRP=(CoBA, dict(lr=lr, amsgrad=False, cg_type='PRP')),
+        CoBAdam_DY=(CoBA, dict(lr=lr, amsgrad=False, cg_type='DY')),
+        CoBAdam_HZ=(CoBA, dict(lr=lr, amsgrad=False, cg_type='HZ')),
+
+        CoBAMSGrad_HS=(CoBA, dict(lr=lr, amsgrad=True, cg_type='HS')),
+        CoBAMSGrad_FR=(CoBA, dict(lr=lr, amsgrad=True, cg_type='FR')),
+        CoBAMSGrad_PRP=(CoBA, dict(lr=lr, amsgrad=True, cg_type='PRP')),
+        CoBAMSGrad_DY=(CoBA, dict(lr=lr, amsgrad=True, cg_type='DY')),
+        CoBAMSGrad_HZ=(CoBA, dict(lr=lr, amsgrad=True, cg_type='HZ')),
+    )
+
+
+def prepare_optimizers_test(lr: float):
+    return dict(
         Adam_Existing=(Adam, dict(lr=lr, amsgrad=False)),
         AMSGrad_Existing=(Adam, dict(lr=lr, amsgrad=True)),
 
-        Momentum_C1=(CGLikeMomentum, dict(alpha_type='C1', beta_type='C1', gamma_type='No')),
-        Momentum_C2=(CGLikeMomentum, dict(alpha_type='C2', beta_type='C2', gamma_type='No')),
-        Momentum_C3=(CGLikeMomentum, dict(alpha_type='C3', beta_type='C3', gamma_type='No')),
-        Momentum_D1=(CGLikeMomentum, dict(alpha_type='D1', beta_type='D1', gamma_type='No')),
-        CGLikeMomentum_C1=(CGLikeMomentum, dict(alpha_type='C1', beta_type='C1', gamma_type='C1')),
-        CGLikeMomentum_C2=(CGLikeMomentum, dict(alpha_type='C2', beta_type='C2', gamma_type='C2')),
-        CGLikeMomentum_C3=(CGLikeMomentum, dict(alpha_type='C3', beta_type='C3', gamma_type='C3')),
-        CGLikeMomentum_D1=(CGLikeMomentum, dict(alpha_type='D1', beta_type='D1', gamma_type='D1')),
-        CGLikeMomentum_D2=(CGLikeMomentum, dict(alpha_type='D1', beta_type='D1', gamma_type='D2')),
-
-        Adam_C1=(CGLikeAdam, dict(alpha_type='C1', beta_type='C1', gamma_type='No', amsgrad=False)),
-        Adam_C2=(CGLikeAdam, dict(alpha_type='C2', beta_type='C2', gamma_type='No', amsgrad=False)),
-        Adam_C3=(CGLikeAdam, dict(alpha_type='C3', beta_type='C3', gamma_type='No', amsgrad=False)),
-        Adam_D1=(CGLikeAdam, dict(alpha_type='D1', beta_type='D1', gamma_type='No', amsgrad=False)),
-        CGLikeAdam_C1=(CGLikeAdam, dict(alpha_type='C1', beta_type='C1', gamma_type='C1', amsgrad=False)),
-        CGLikeAdam_C2=(CGLikeAdam, dict(alpha_type='C2', beta_type='C2', gamma_type='C2', amsgrad=False)),
-        CGLikeAdam_C3=(CGLikeAdam, dict(alpha_type='C3', beta_type='C3', gamma_type='C3', amsgrad=False)),
-        CGLikeAdam_D1=(CGLikeAdam, dict(alpha_type='D1', beta_type='D1', gamma_type='D1', amsgrad=False)),
-        CGLikeAdam_D2=(CGLikeAdam, dict(alpha_type='D1', beta_type='D1', gamma_type='D2', amsgrad=False)),
-
-        AMSGrad_C1=(CGLikeAdam, dict(alpha_type='C1', beta_type='C1', gamma_type='No', amsgrad=True)),
-        AMSGrad_C2=(CGLikeAdam, dict(alpha_type='C2', beta_type='C2', gamma_type='No', amsgrad=True)),
-        AMSGrad_C3=(CGLikeAdam, dict(alpha_type='C3', beta_type='C3', gamma_type='No', amsgrad=True)),
-        AMSGrad_D1=(CGLikeAdam, dict(alpha_type='D1', beta_type='D1', gamma_type='No', amsgrad=True)),
-        CGLikeAMSGrad_C1=(CGLikeAdam, dict(alpha_type='C1', beta_type='C1', gamma_type='C1', amsgrad=True)),
-        CGLikeAMSGrad_C2=(CGLikeAdam, dict(alpha_type='C2', beta_type='C2', gamma_type='C2', amsgrad=True)),
-        CGLikeAMSGrad_C3=(CGLikeAdam, dict(alpha_type='C3', beta_type='C3', gamma_type='C3', amsgrad=True)),
-        CGLikeAMSGrad_D1=(CGLikeAdam, dict(alpha_type='D1', beta_type='D1', gamma_type='D1', amsgrad=True)),
-        CGLikeAMSGrad_D2=(CGLikeAdam, dict(alpha_type='D1', beta_type='D1', gamma_type='D2', amsgrad=True)),
+        CoBAdamConst_HS=(CoBA, dict(lr=lr, amsgrad=False, cg_type='HS', a=1)),
+        CoBAdamConst_FR=(CoBA, dict(lr=lr, amsgrad=False, cg_type='FR', a=1)),
+        CoBAdamConst_PRP=(CoBA, dict(lr=lr, amsgrad=False, cg_type='PRP', a=1)),
+        CoBAdamConst_DY=(CoBA, dict(lr=lr, amsgrad=False, cg_type='DY', a=1)),
+        CoBAdamConst_HZ=(CoBA, dict(lr=lr, amsgrad=False, cg_type='HZ', a=1)),
     )
 
 
 def imdb() -> None:
     lr = 1e-3
-    # optimizers = prepare_optimizers(lr)
-    optimizers = dict(AMSGrad_Existing=(Adam, dict(lr=lr, amsgrad=True)))
+    optimizers = prepare_optimizers(lr)
     e = ExperimentIMDb(dataset_name='imdb', max_epoch=100, batch_size=32)
     e.execute(optimizers)
 

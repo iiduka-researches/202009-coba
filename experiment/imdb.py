@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from torchtext.data import BucketIterator, Field, LabelField
 from torchtext.datasets import IMDB
 
-from optimizer.optimizer import Optimizer
+from optimizer.base_optimizer import Optimizer
 from .experiment import Experiment, ResultDict
 
 

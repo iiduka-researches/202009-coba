@@ -4,13 +4,15 @@ import os
 import random
 from time import time
 from typing import Any, Dict, Optional, Sequence, Tuple
+
 import numpy as np
 from pandas import concat, DataFrame, read_csv
 import torch
 from torch.nn import Module
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from optimizer.optimizer import Optimizer
+
+from optimizer.base_optimizer import Optimizer
 from utils.gmail.transmitter import GMailTransmitter, ACCOUNT_JSON
 from utils.line.notify import notify, notify_error
 
@@ -76,7 +78,7 @@ class Experiment(metaclass=ABCMeta):
             result_to_csv(result, name=name, optimizer_kw=optimizer_kw,
                           result_dir=model_dir)
             notify(f'[{name}] Done.')
-            send_collected_csv(model_dir)
+        send_collected_csv(model_dir)
 
 
 

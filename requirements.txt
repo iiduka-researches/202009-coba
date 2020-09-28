@@ -1,5 +1,5 @@
 google-api-python-client
-google-auth-oauthlilb
+google-auth-oauthlib
 matplotlib
 numpy
 pandas

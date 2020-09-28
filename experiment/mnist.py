@@ -10,7 +10,7 @@ from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 
 from experiment.experiment import Experiment, ResultDict
-from optimizer.optimizer import Optimizer
+from optimizer.base_optimizer import Optimizer
 
 
 class ExperimentMNIST(Experiment):

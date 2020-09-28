@@ -10,7 +10,7 @@ from torchvision.transforms import ToTensor
 
 from experiment.experiment import Experiment, ResultDict
 from model.resnet import resnet20, resnet32, resnet44, resnet56, resnet110
-from optimizer.optimizer import Optimizer
+from optimizer.base_optimizer import Optimizer
 
 MODEL_DICT = dict(
     ResNet20=resnet20,
@@ -50,6 +50,13 @@ class ExperimentCIFAR10(Experiment):
             optimizer.zero_grad()
             outputs = net(inputs)
             loss = criterion(outputs, labels)
+
+            # debug
+            if loss != loss:
+                from utils.line.notify import notify
+                notify(f'{i}: loss is NaN...')
+                raise ValueError('loss is NaN...')
+
             loss.backward()
             optimizer.step(closure=None)
             running_loss += loss.item()

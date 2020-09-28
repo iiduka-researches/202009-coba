@@ -13,11 +13,11 @@ color_dict = dict(
     )
 marker_dict = dict(
     Existing='',
-    C1='o',
-    C2='x',
-    C3='s',
-    D1='^',
-    D2='h',
+    HS='o',
+    FR='x',
+    PRP='s',
+    DY='^',
+    HZ='h',
 )
 
 x_label_dict = dict(
@@ -36,14 +36,15 @@ def plot(dataset: str, model: str, title='', result_path=None, save_extension='p
     if result_path is None:
         result_path = os.path.join('result', dataset, model, 'result.csv')
     data = read_csv(result_path, encoding='utf-8')
-    data.replace('Momentum_Exiting', 'Momentum_Existing', inplace=True)
+    data[name_col] = data[name_col].map(lambda x: x.replace('PPR', 'PRP') if 'PPR' in x else x)
     names = set(data[name_col])
     index_col = [name_col, epoch_col]
     data.set_index(index_col, inplace=True)
 
-    constants = {n for n in names if n.split('_')[-1][0] == 'C' or n.split('_')[-1] == 'Existing'}
-    diminishings = {n for n in names if n.split('_')[-1][0] == 'D'}
-    for type_label, optimizer_names in (('constant', constants), ('diminishing', diminishings)):
+    # constants = {n for n in names if n.split('_')[-1][0] == 'C' or n.split('_')[-1] == 'Existing'}
+    # diminishings = {n for n in names if n.split('_')[-1][0] == 'D'}
+    # for type_label, optimizer_names in (('constant', constants), ('diminishing', diminishings)):
+    for type_label, optimizer_names in (('constant', names), ):
         for metric, y_label in (('train_loss', 'training loss'),
                                 ('test_loss', 'test loss'),
                                 ('train_accuracy', 'training error rate'),
@@ -73,7 +74,7 @@ def _plot(df: DataFrame, optimizer_names: Set[str], metric: str, time_col: str, 
             y = 1. - y + 1e-8
 
         base_name, lr_type = name.split('_')
-        color = color_dict[base_name.replace('CGLike', '')]
+        color = color_dict[base_name.replace('CM', '')]
         linestyle = get_linestyle(base_name, lr_type)
 
         plt.plot(x, y, label=name, linestyle=linestyle, color=color,
@@ -98,7 +99,7 @@ def _plot(df: DataFrame, optimizer_names: Set[str], metric: str, time_col: str, 
 def get_linestyle(name: str, lr_type: str) -> str:
     if lr_type == 'Existing':
         return 'dotted'
-    elif 'CGLike' in name:
+    elif 'CM' in name:
         return 'solid'
     else:
         return 'dashed'
@@ -107,7 +108,7 @@ def get_linestyle(name: str, lr_type: str) -> str:
 def arrange_legend(ax, names: Set[str], ex_suffix='Existing') -> None:
     ex_base_names = (f'Momentum_{ex_suffix}', f'AdaGrad_{ex_suffix}', f'RMSProp_{ex_suffix}', f'Adam_{ex_suffix}',
                      f'AMSGrad_{ex_suffix}')
-    pp_base_names = ('Momentum', 'CGLikeMomentum', 'Adam', 'CGLikeAdam', 'AMSGrad', 'CGLikeAMSGrad')
+    pp_base_names = ('CMAdam', 'CMAMSGrad')
 
     handles, labels = ax.get_legend_handles_labels()
     handles_dict = dict(zip(labels, handles))
@@ -130,9 +131,6 @@ def label_format(label: str) -> str:
     if lr_type == 'Existing':
         return name
     else:
-        if 'CGLike' in name:
-            name = name.replace('CGLike', '')
-            name = f'{name}CG'
         return f'{name}-{lr_type}'
 
 

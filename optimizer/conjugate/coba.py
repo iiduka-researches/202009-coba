@@ -1,34 +1,14 @@
 import math
+
 import torch
-from .base_optimizer import Optimizer
+
+from optimizer.base_optimizer import Optimizer
+from optimizer.conjugate.conjugate_param import get_cg_param_fn
 
 
-class Adam(Optimizer):
-    r"""Implements Adam algorithm.
-        It has been proposed in `Adam: A Method for Stochastic Optimization`_.
-        The implementation of the L2 penalty follows changes proposed in
-        `Decoupled Weight Decay Regularization`_.
-        Arguments:
-            params (iterable): iterable of parameters to optimize or dicts defining
-                parameter groups
-            lr (float, optional): learning rate (default: 1e-3)
-            betas (Tuple[float, float], optional): coefficients used for computing
-                running averages of gradient and its square (default: (0.9, 0.999))
-            eps (float, optional): term added to the denominator to improve
-                numerical stability (default: 1e-8)
-            weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
-            amsgrad (boolean, optional): whether to use the AMSGrad variant of this
-                algorithm from the paper `On the Convergence of Adam and Beyond`_
-                (default: False)
-        .. _Adam\: A Method for Stochastic Optimization:
-            https://arxiv.org/abs/1412.6980
-        .. _Decoupled Weight Decay Regularization:
-            https://arxiv.org/abs/1711.05101
-        .. _On the Convergence of Adam and Beyond:
-            https://openreview.net/forum?id=ryQu7f-RZ
-        """
-
-    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0, amsgrad=False) -> None:
+class CoBA(Optimizer):
+    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.0, amsgrad=False,
+                 cg_type='HS', lam=2.0, m=1e-3, a=1+1e-8) -> None:
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:
@@ -39,14 +19,22 @@ class Adam(Optimizer):
             raise ValueError("Invalid beta parameter at index 1: {}".format(betas[1]))
         if not 0.0 <= weight_decay:
             raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
-        defaults = dict(lr=lr, betas=betas, eps=eps,
-                        weight_decay=weight_decay, amsgrad=amsgrad)
-        super(Adam, self).__init__(params, defaults)
+        if not 0.0 < m:
+            raise ValueError("Invalid m value: {}".format(m))
+        if not 1.0 <= a:
+            raise ValueError("Invalid a value: {}".format(a))
+        defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad,
+                        cg_type=cg_type, lam=lam, a=a, m=m)
+        super(CoBA, self).__init__(params, defaults)
+
 
     def __setstate__(self, state):
-        super(Adam, self).__setstate__(state)
+        super(CoBA, self).__setstate__(state)
         for group in self.param_groups:
             group.setdefault('amsgrad', False)
+            group.setdefault('cg_type', 'HS')
+            group.setdefault('m', 1e-3)
+            group.setdefault('a', 1+1e-5)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -61,7 +49,8 @@ class Adam(Optimizer):
                 loss = closure()
 
         for group in self.param_groups:
-            for p in group['params']:
+            cg_param_fn = get_cg_param_fn(group['cg_type'])
+            for i, p in enumerate(group['params']):
                 if p.grad is None:
                     continue
                 grad = p.grad
@@ -75,12 +64,14 @@ class Adam(Optimizer):
                 if len(state) == 0:
                     state['step'] = 0
                     # Exponential moving average of gradient values
-                    state['exp_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                    state['exp_avg'] = torch.zeros_like(p)
                     # Exponential moving average of squared gradient values
-                    state['exp_avg_sq'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                    state['exp_avg_sq'] = torch.zeros_like(p)
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
-                        state['max_exp_avg_sq'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                        state['max_exp_avg_sq'] = torch.zeros_like(p)
+                    state['grad_buffer'] = None
+                    state['conjugate_grad'] = None
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
                 if amsgrad:
@@ -92,10 +83,20 @@ class Adam(Optimizer):
                 state['step'] += 1
 
                 if group['weight_decay'] != 0:
+                    # Decay the first and second moment running average coefficient
                     grad = grad.add(p, alpha=group['weight_decay'])
 
-                # Decay the first and second moment running average coefficient
-                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
+                if state['conjugate_grad'] is None:
+                    state['grad_buffer'] = grad.clone()
+                    state['conjugate_grad'] = (-grad).clone()
+                else:
+                    g_buf = state['grad_buffer']
+                    d_buf = state['conjugate_grad']
+                    cg_param = cg_param_fn(grad, g_buf, d_buf, group)
+                    state['grad_buffer'] = grad.clone()
+                    state['conjugate_grad'] = -grad + group['m'] * cg_param * d_buf / (state['step'] ** group['a'])
+
+                exp_avg.mul_(beta1).add_(state['conjugate_grad'], alpha=1 - beta1)
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
                 if amsgrad:
                     # Maintains the maximum of all 2nd moment running avg. till now
@@ -110,7 +111,6 @@ class Adam(Optimizer):
                     denom = (exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
                     step_size = group['lr'] / bias_correction1
 
-                p.addcdiv_(exp_avg, denom, value=-step_size)
+                p.addcdiv_(exp_avg, denom, value=step_size)
 
         return loss
-
