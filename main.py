@@ -7,6 +7,7 @@ from experiment.stl10 import ExperimentSTL10
 from optimizer.adam import Adam
 from optimizer.conjugate.conjugate_momentum_adam import ConjugateMomentumAdam
 from optimizer.conjugate.coba import CoBA
+from optimizer.conjugate.coba2 import CoBA2
 
 Optimizer = Union[Adam, CoBA, ConjugateMomentumAdam]
 OptimizerDict = Dict[str, Tuple[Any, Dict[str, Any]]]
@@ -14,6 +15,37 @@ OptimizerDict = Dict[str, Tuple[Any, Dict[str, Any]]]
 
 def prepare_optimizers(lr: float) -> OptimizerDict:
     return dict(
+        CoBAMSGrad2_HS=(CoBA2, dict(lr=lr, amsgrad=True, cg_type='HS')),
+        CoBAMSGrad2_FR=(CoBA2, dict(lr=lr, amsgrad=True, cg_type='FR')),
+        CoBAMSGrad2_PRP=(CoBA2, dict(lr=lr, amsgrad=True, cg_type='PRP')),
+        CoBAMSGrad2_DY=(CoBA2, dict(lr=lr, amsgrad=True, cg_type='DY')),
+        CoBAMSGrad2_HZ=(CoBA2, dict(lr=lr, amsgrad=True, cg_type='HZ')),
+
+        CoBAMSGradConst2_HS=(CoBA2, dict(lr=lr, amsgrad=True, cg_type='HS', a=1, m=1)),
+        CoBAMSGradConst2_FR=(CoBA2, dict(lr=lr, amsgrad=True, cg_type='FR', a=1, m=1)),
+        CoBAMSGradConst2_PRP=(CoBA2, dict(lr=lr, amsgrad=True, cg_type='PRP', a=1, m=1)),
+        CoBAMSGradConst2_DY=(CoBA2, dict(lr=lr, amsgrad=True, cg_type='DY', a=1, m=1)),
+        CoBAMSGradConst2_HZ=(CoBA2, dict(lr=lr, amsgrad=True, cg_type='HZ', a=1, m=1)),
+
+        # CoBAdam2_HS=(CoBA2, dict(lr=lr, amsgrad=False, cg_type='HS')),
+        # CoBAdam2_FR=(CoBA2, dict(lr=lr, amsgrad=False, cg_type='FR')),
+        # CoBAdam2_PRP=(CoBA2, dict(lr=lr, amsgrad=False, cg_type='PRP')),
+        # CoBAdam2_DY=(CoBA2, dict(lr=lr, amsgrad=False, cg_type='DY')),
+        # CoBAdam2_HZ=(CoBA2, dict(lr=lr, amsgrad=False, cg_type='HZ')),
+
+        # CoBAdamConst2_HS=(CoBA2, dict(lr=lr, amsgrad=False, cg_type='HS', a=1, m=1)),
+        # CoBAdamConst2_FR=(CoBA2, dict(lr=lr, amsgrad=False, cg_type='FR', a=1, m=1)),
+        # CoBAdamConst2_PRP=(CoBA2, dict(lr=lr, amsgrad=False, cg_type='PRP', a=1, m=1)),
+        # CoBAdamConst2_DY=(CoBA2, dict(lr=lr, amsgrad=False, cg_type='DY', a=1, m=1)),
+        # CoBAdamConst2_HZ=(CoBA2, dict(lr=lr, amsgrad=False, cg_type='HZ', a=1, m=1)),
+    )
+
+
+def prepare_optimizers_test(lr: float):
+    return dict(
+        Adam_Existing=(Adam, dict(lr=lr, amsgrad=False)),
+        AMSGrad_Existing=(Adam, dict(lr=lr, amsgrad=True)),
+
         CMAdam_HS=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=False, cg_type='HS')),
         CMAdam_FR=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=False, cg_type='FR')),
         CMAdam_PRP=(ConjugateMomentumAdam, dict(lr=lr, amsgrad=False, cg_type='PRP')),
@@ -37,19 +69,18 @@ def prepare_optimizers(lr: float) -> OptimizerDict:
         CoBAMSGrad_PRP=(CoBA, dict(lr=lr, amsgrad=True, cg_type='PRP')),
         CoBAMSGrad_DY=(CoBA, dict(lr=lr, amsgrad=True, cg_type='DY')),
         CoBAMSGrad_HZ=(CoBA, dict(lr=lr, amsgrad=True, cg_type='HZ')),
-    )
-
-
-def prepare_optimizers_test(lr: float):
-    return dict(
-        Adam_Existing=(Adam, dict(lr=lr, amsgrad=False)),
-        AMSGrad_Existing=(Adam, dict(lr=lr, amsgrad=True)),
 
         CoBAdamConst_HS=(CoBA, dict(lr=lr, amsgrad=False, cg_type='HS', a=1)),
         CoBAdamConst_FR=(CoBA, dict(lr=lr, amsgrad=False, cg_type='FR', a=1)),
         CoBAdamConst_PRP=(CoBA, dict(lr=lr, amsgrad=False, cg_type='PRP', a=1)),
         CoBAdamConst_DY=(CoBA, dict(lr=lr, amsgrad=False, cg_type='DY', a=1)),
         CoBAdamConst_HZ=(CoBA, dict(lr=lr, amsgrad=False, cg_type='HZ', a=1)),
+
+        CoBAMSGradConst_HS=(CoBA, dict(lr=lr, amsgrad=False, cg_type='HS', a=1)),
+        CoBAMSGradConst_FR=(CoBA, dict(lr=lr, amsgrad=False, cg_type='FR', a=1)),
+        CoBAMSGradConst_PRP=(CoBA, dict(lr=lr, amsgrad=False, cg_type='PRP', a=1)),
+        CoBAMSGradConst_DY=(CoBA, dict(lr=lr, amsgrad=False, cg_type='DY', a=1)),
+        CoBAMSGradConst_HZ=(CoBA, dict(lr=lr, amsgrad=False, cg_type='HZ', a=1)),
     )
 
 

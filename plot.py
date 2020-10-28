@@ -5,25 +5,32 @@ import numpy as np
 from pandas import DataFrame, read_csv
 
 color_dict = dict(
-        Momentum='C2',
-        Adam='C4',
-        AMSGrad='C0',
-        AdaGrad='C1',
-        RMSProp='C3',
-    )
+    HS='C0',
+    FR='C1',
+    PRP='C2',
+    DY='C3',
+    HZ='C4',
+    Existing='C5',
+)
 marker_dict = dict(
     Existing='',
-    HS='o',
-    FR='x',
-    PRP='s',
-    DY='^',
-    HZ='h',
+    HS='',
+    FR='',
+    PRP='',
+    DY='',
+    HZ='',
 )
 
 x_label_dict = dict(
     epoch='epoch',
     time='elapsed time [s]',
 )
+
+ex_suffix = 'Existing'
+ex_base_names = (f'Momentum_{ex_suffix}', f'AdaGrad_{ex_suffix}', f'RMSProp_{ex_suffix}', f'Adam_{ex_suffix}',
+                     f'AMSGrad_{ex_suffix}')
+# pp_base_names = ('CoBAdam', 'CoBAMSGrad', 'CMAdam', 'CMAMSGrad')
+pp_base_names = ('CoBAMSGrad2', )
 
 
 def plot(dataset: str, model: str, title='', result_path=None, save_extension='pdf') -> None:
@@ -74,7 +81,7 @@ def _plot(df: DataFrame, optimizer_names: Set[str], metric: str, time_col: str, 
             y = 1. - y + 1e-8
 
         base_name, lr_type = name.split('_')
-        color = color_dict[base_name.replace('CM', '')]
+        color = color_dict[lr_type]
         linestyle = get_linestyle(base_name, lr_type)
 
         plt.plot(x, y, label=name, linestyle=linestyle, color=color,
@@ -84,7 +91,8 @@ def _plot(df: DataFrame, optimizer_names: Set[str], metric: str, time_col: str, 
         plt.title(title)
 
     ax = plt.gca()
-    arrange_legend(ax, names=optimizer_names)
+    # arrange_legend(ax, names=optimizer_names)
+    plt.legend()
 
     plt.xlabel(x_label_dict[x_axis])
     plt.ylabel(ylabel=y_label)
@@ -101,15 +109,13 @@ def get_linestyle(name: str, lr_type: str) -> str:
         return 'dotted'
     elif 'CM' in name:
         return 'solid'
+    elif 'CoB' in name:
+        return 'dashed'
     else:
         return 'dashed'
 
 
-def arrange_legend(ax, names: Set[str], ex_suffix='Existing') -> None:
-    ex_base_names = (f'Momentum_{ex_suffix}', f'AdaGrad_{ex_suffix}', f'RMSProp_{ex_suffix}', f'Adam_{ex_suffix}',
-                     f'AMSGrad_{ex_suffix}')
-    pp_base_names = ('CMAdam', 'CMAMSGrad')
-
+def arrange_legend(ax, names: Set[str]) -> None:
     handles, labels = ax.get_legend_handles_labels()
     handles_dict = dict(zip(labels, handles))
 
@@ -136,5 +142,4 @@ def label_format(label: str) -> str:
 
 if __name__ == '__main__':
     from sys import argv
-    dataset, model = argv[1:3]
-    plot(dataset=dataset, model=model)
+    plot(dataset=argv[1], model=argv[2])

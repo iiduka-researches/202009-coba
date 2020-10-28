@@ -66,11 +66,14 @@ class Experiment(metaclass=ABCMeta):
         return net, concat_dicts(results)
 
     @notify_error
-    def execute(self, optimizers: OptimDict, result_dir='./result') -> None:
+    def execute(self, optimizers: OptimDict, result_dir='./result', seed=0) -> None:
         model_dir = os.path.join(result_dir, self.dataset_name, self.model_name)
         train_loader, test_loader, kw_model = self.prepare_data_loader(batch_size=self.batch_size, data_dir=self.data_dir)
+        period = len(train_loader)
         for name, (optimizer, optimizer_kw) in optimizers.items():
-            fix_seed()
+            fix_seed(seed)
+            if name.split('_')[0][-1] == '2':
+                optimizer_kw['period'] = period
             net = self.prepare_model(self.model_name, **kw_model)
             net.to(self.device)
             _, result = self.train(net=net, optimizer=optimizer(net.parameters(), **optimizer_kw),
