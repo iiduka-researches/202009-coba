@@ -4,12 +4,12 @@ from typing import Optional, Tuple
 import torch
 from torch.nn import Module
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import ToTensor
 
-from experiment.base_experiment import BaseExperiment, ResultDict
-from model import resnet20, resnet32, resnet44, resnet56, resnet110
+from experiment.base import BaseExperiment, ResultDict
+from model.resnet import resnet20, resnet32, resnet44, resnet56, resnet110
 from optimizer.base_optimizer import Optimizer
 
 MODEL_DICT = dict(
@@ -22,15 +22,13 @@ MODEL_DICT = dict(
 
 
 class ExperimentCIFAR10(BaseExperiment):
-    def prepare_data_loader(self, batch_size: int, data_dir: str) -> Tuple[DataLoader, DataLoader, dict]:
-        root = os.path.join(data_dir, 'cifar10')
-        os.makedirs(root, exist_ok=True)
+    def __init__(self, **kwargs) -> None:
+        super(ExperimentCIFAR10, self).__init__(dataset_name='mnist', **kwargs)
 
-        train_data = CIFAR10(root, train=True, download=True, transform=ToTensor())
-        test_data = CIFAR10(root, train=False, download=True, transform=ToTensor())
-        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
-        return train_loader, test_loader, dict()
+    def prepare_data(self, train: bool, **kwargs) -> Dataset:
+        root = os.path.join(self.data_dir, 'cifar10')
+        os.makedirs(root, exist_ok=True)
+        return CIFAR10(root, train=train, download=True, transform=ToTensor(), **kwargs)
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
         if model_name in MODEL_DICT:

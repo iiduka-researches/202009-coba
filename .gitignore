@@ -1,6 +1,7 @@
 .DS_Store
 result/*
 dataset/data/*
+dataset/process/counts/*.json
 utils/gmail/account.json
 utils/gmail/client_secret.json
 utils/gmail/token.pickle

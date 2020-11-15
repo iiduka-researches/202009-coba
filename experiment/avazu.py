@@ -1,37 +1,106 @@
-from typing import Tuple, Optional
+from typing import Sequence, Tuple, Optional
 
-from torch.nn import Module, Linear, Embedding
-from torch.utils.data import DataLoader
+import numpy as np
+from sklearn.metrics import roc_auc_score
+import torch
+from torch import sigmoid
+from torch.nn import BCEWithLogitsLoss, Embedding, Linear, Module
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
 from optimizer.base_optimizer import Optimizer
-from .base_experiment import BaseExperiment, ResultDict
+from .base import BaseExperiment, ResultDict
+from dataset.avazu import AvazuDataset
 
 
 class ExperimentAvazu(BaseExperiment):
-    def prepare_data_loader(self, batch_size: int, data_dir: str) -> Tuple[DataLoader, DataLoader, dict]:
-        pass
+    def __init__(self, embedding_dim=10, model_name='logistic_regression', weight_decay=1e-4, **kwargs) -> None:
+        super(ExperimentAvazu, self).__init__(dataset_name='avazu', model_name=model_name,
+                                              kw_optimizer=dict(weight_decay=weight_decay), **kwargs)
+        self.embedding_dim = embedding_dim
+
+    def prepare_data(self, train: bool, **kwargs) -> Dataset:
+        return AvazuDataset(train=train, **kwargs)
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
         if model_name:
-            return _MODEL_DICT[model_name](**kwargs)
+            sizes = tuple(AvazuDataset.size_dict.values())
+            embedding_dims = [self.embedding_dim for _ in sizes]
+            return _MODEL_DICT[model_name](sizes=sizes, embedding_dims=embedding_dims, device=self.device, **kwargs)
         else:
             raise ValueError(f'model_name: {model_name} is invalid.')
 
     def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader) -> Tuple[Module, ResultDict]:
-        pass
+        running_loss = 0.0
+        i = 0
+        total = 0
+        correct = 0
+        criterion = BCEWithLogitsLoss()
+        label_list, prob_list = [], []
+        for inputs, labels in tqdm(train_loader):
+            inputs = inputs.to(self.device, dtype=torch.long)
+            labels = labels.to(self.device, dtype=torch.float)
+            optimizer.zero_grad()
+            outputs = net(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step(closure=None)
+
+            running_loss += loss.item()
+            total += labels.size(0)
+            predicted = torch.where(outputs <= .5, torch.zeros_like(outputs), torch.ones_like(outputs))
+            correct += (predicted == labels).sum().item()
+
+            label_list.append(labels.detach().cpu().numpy().flatten())
+            prob_list.append(sigmoid(outputs).detach().cpu().numpy().flatten())
+
+            i += 1
+
+        y_true = np.hstack(label_list)
+        y_pred = np.hstack(prob_list)
+        auc = roc_auc_score(y_true, y_pred)
+        return net, dict(train_loss=running_loss / i, train_accuracy=correct / total, train_auc=auc)
 
     def epoch_validate(self, net: Module, test_loader: DataLoader, **kwargs) -> ResultDict:
-        pass
+        running_loss = 0.0
+        i = 0
+        total = 0
+        correct = 0
+        criterion = BCEWithLogitsLoss()
+        label_list, prob_list = [], []
+        with torch.no_grad():
+            for inputs, labels in test_loader:
+                inputs = inputs.to(self.device, dtype=torch.long)
+                labels = labels.to(self.device, dtype=torch.float)
+                outputs = net(inputs)
+                loss = criterion(outputs, labels)
+                running_loss += loss.item()
+                predicted = torch.where(outputs <= .5, torch.zeros_like(outputs), torch.ones_like(outputs))
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+                label_list.append(labels.detach().cpu().numpy().flatten())
+                prob_list.append(sigmoid(outputs).detach().cpu().numpy().flatten())
+
+                i += 1
+
+        y_true = np.hstack(label_list)
+        y_pred = np.hstack(prob_list)
+        auc = roc_auc_score(y_true, y_pred)
+
+        return dict(test_loss=running_loss / i, test_accuracy=correct / total, test_auc=auc)
 
 
 class LinearRegression(Module):
-    def __init__(self, num_embeddings: int, embedding_dim: int, out_dim: int) -> None:
+    def __init__(self, sizes: Sequence[int], embedding_dims: Sequence[int], device, out_dim=1) -> None:
         super(LinearRegression, self).__init__()
-        self.emb = Embedding(num_embeddings, embedding_dim)
-        self.linear = Linear(embedding_dim, out_dim)
+        self.embeddings = [Embedding(num_embeddings, embedding_dim).to(device=device)
+                           for num_embeddings, embedding_dim in zip(sizes, embedding_dims)]
+        self.linear = Linear(sum(embedding_dims), out_dim)
 
     def forward(self, x):
-        return self.linear(x)
+        m = torch.cat([emb(x[:, i]) for i, emb in enumerate(self.embeddings)], 1)
+        return self.linear(m)
 
 
 _MODEL_DICT = dict(

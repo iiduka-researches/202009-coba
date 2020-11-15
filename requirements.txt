@@ -3,7 +3,8 @@ google-auth-oauthlib
 matplotlib
 numpy
 pandas
+scikit-learn
 torch
-torchtext==0.4.0
+torchtext
 torchvision
 tqdm

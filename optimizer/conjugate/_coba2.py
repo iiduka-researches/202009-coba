@@ -1,5 +1,4 @@
 import math
-from typing import List
 
 import torch
 
@@ -29,7 +28,6 @@ class CoBA2(Optimizer):
         defaults = dict(period=period, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad,
                         cg_type=cg_type, lam=lam, a=a, m=m)
         super(CoBA2, self).__init__(params, defaults)
-        self.scg_expect_errors: List[float] = []
 
 
     def __setstate__(self, state):
@@ -72,10 +70,11 @@ class CoBA2(Optimizer):
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state['max_exp_avg_sq'] = torch.zeros_like(p)
-                    state['deterministic_g'] = None
+                    state['deterministic_grad'] = None
                     state['deterministic_cg'] = None
-                    state['stochastic_g_accum'] = torch.zeros_like(p)
+                    state['stochastic_grad_accum'] = torch.zeros_like(p)
                     state['stochastic_cg_accum'] = torch.zeros_like(p)
+
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
                 if amsgrad:
@@ -90,37 +89,22 @@ class CoBA2(Optimizer):
                     # Decay the first and second moment running average coefficient
                     grad = grad.add(p, alpha=group['weight_decay'])
 
-                if state['deterministic_cg'] is None:
+                if state['deterministic_cg'] is None :
                     # state['g_buf'] = grad.clone()
                     state['stochastic_cg'] = (-grad).clone()
                 else:
                     d_cg = state['deterministic_cg']
-                    cg_param = cg_param_fn(grad, state['deterministic_g'], d_cg, group)
+                    cg_param = cg_param_fn(grad, state['deterministic_grad'], d_cg, group)
                     # state['g_buf'] = grad.clone()
                     state['stochastic_cg'] = -grad + group['m'] * cg_param * d_cg / (state['step'] ** group['a'])
 
                 if state['step'] % group['period'] == 0:
-                    # Expected value calculation for each epoch.
-                    deterministic_g = state['stochastic_g_accum'] / group['period']
-                    if state['deterministic_cg'] is None:
-                        state['deterministic_cg'] = - deterministic_g
-                    else:
-                        deterministic_cg_param = \
-                            cg_param_fn(deterministic_g, state['deterministic_g'], state['deterministic_cg'], group)
-                        state['deterministic_cg'] = \
-                            - deterministic_g + deterministic_cg_param * state['deterministic_cg']
-
-                    # Snapshot error between Stochastic CG and deterministic CG.
-                    scg_expect = state['stochastic_g_accum'] / group['period']
-                    self.scg_expect_errors.append(
-                        torch.norm(state['deterministic_cg'] - scg_expect).clone().cpu().item()
-                    )
-
-                    # Reset for a next epoch.
-                    state['stochastic_cg_accum'] = state['stochastic_g_accum'] = torch.zeros_like(p)
-                    state['deterministic_g'] = deterministic_g.clone()
+                    state['deterministic_grad'] = state['stochastic_grad_accum'] / group['period']
+                    state['stochastic_grad_accum'] = state['stochastic_grad_accum'] = torch.zeros_like(p)
+                    state['deterministic_cg'] = state['stochastic_cg_accum'] / group['period']
+                    state['stochastic_cg_accum'] = state['stochastic_cg_accum'] = torch.zeros_like(p)
                 else:
-                    state['stochastic_g_accum'] += grad
+                    state['stochastic_grad_accum'] += grad
                     state['stochastic_cg_accum'] += state['stochastic_cg']
 
                 exp_avg.mul_(beta1).add_(state['stochastic_cg'], alpha=1 - beta1)

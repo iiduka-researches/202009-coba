@@ -6,13 +6,15 @@ from time import time
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
-from pandas import concat, DataFrame, read_csv
+from pandas import DataFrame
 import torch
 from torch.nn import Module
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from optimizer.base_optimizer import Optimizer
+from optimizer.conjugate.coba import CoBA
+from optimizer.conjugate.coba2 import CoBA2
 from utils.gmail.transmitter import GMailTransmitter, ACCOUNT_JSON
 from utils.line.notify import notify, notify_error
 
@@ -23,20 +25,29 @@ Result = Dict[str, Sequence[float]]
 
 
 class BaseExperiment(metaclass=ABCMeta):
-    def __init__(self, batch_size: int, max_epoch: int, dataset_name: str, model_name='model',
-                 data_dir='./dataset/data/') -> None:
+    def __init__(self, batch_size: int, max_epoch: int, dataset_name: str, kw_dataset=None, kw_loader=None,
+                 model_name='model', kw_model=None, kw_optimizer=None, data_dir='./dataset/data/') -> None:
+        r"""Base class for all experiments.
+
+        """
         self.dataset_name = dataset_name
-        self.model_name = model_name
-        self.max_epoch = max_epoch
         self.batch_size = batch_size
+        self.max_epoch = max_epoch
         self.data_dir = data_dir
         self.device = select_device()
+        _kw_dataset = kw_dataset if kw_dataset else dict()
+        self.train_data = self.prepare_data(train=True, **_kw_dataset)
+        self.test_data = self.prepare_data(train=False, **_kw_dataset)
+        self.kw_loader = kw_loader if kw_loader else dict()
+        self.model_name = model_name
+        self.kw_model = kw_model if kw_model else dict()
+        self.kw_optimizer = kw_optimizer if kw_optimizer else dict()
 
     def __call__(self, *args, **kwargs) -> None:
         self.execute(*args, **kwargs)
 
     @abstractmethod
-    def prepare_data_loader(self, batch_size: int, data_dir: str) -> Tuple[DataLoader, DataLoader, dict]:
+    def prepare_data(self, train: bool, **kwargs) -> Dataset:
         raise NotImplementedError
 
     @abstractmethod
@@ -53,7 +64,6 @@ class BaseExperiment(metaclass=ABCMeta):
 
     def train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader,
               test_loader: DataLoader) -> Tuple[Module, Result]:
-
         results = []
         for epoch in tqdm(range(self.max_epoch)):
             start = time()
@@ -68,21 +78,30 @@ class BaseExperiment(metaclass=ABCMeta):
     @notify_error
     def execute(self, optimizers: OptimDict, result_dir='./result', seed=0) -> None:
         model_dir = os.path.join(result_dir, self.dataset_name, self.model_name)
-        train_loader, test_loader, kw_model = self.prepare_data_loader(batch_size=self.batch_size, data_dir=self.data_dir)
+        train_loader = DataLoader(self.train_data,  batch_size=self.batch_size, shuffle=True,
+                                  worker_init_fn=worker_init_fn, **self.kw_loader)
+        test_loader = DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False,
+                                 worker_init_fn=worker_init_fn, **self.kw_loader)
         period = len(train_loader)
-        for name, (optimizer, optimizer_kw) in optimizers.items():
+        for name, (optimizer_cls, kw_optimizer) in optimizers.items():
             fix_seed(seed)
-            if name.split('_')[0][-1] == '2':
-                optimizer_kw['period'] = period
-            net = self.prepare_model(self.model_name, **kw_model)
+            if 'CoBA' in name:
+                kw_optimizer['period'] = period
+            net = self.prepare_model(self.model_name, **self.kw_model)
             net.to(self.device)
-            _, result = self.train(net=net, optimizer=optimizer(net.parameters(), **optimizer_kw),
-                                   train_loader=train_loader, test_loader=test_loader)
-            result_to_csv(result, name=name, optimizer_kw=optimizer_kw,
+            optimizer = optimizer_cls(net.parameters(), **kw_optimizer, **self.kw_optimizer)
+            _, result = self.train(net=net, optimizer=optimizer, train_loader=train_loader, test_loader=test_loader)
+            result_to_csv(result, name=name, kw_optimizer=optimizer.__dict__.get('defaults', kw_optimizer),
                           result_dir=model_dir)
-            notify(f'[{name}] Done.')
-        send_collected_csv(model_dir)
 
+            notify(f'[{name}] Done.')
+
+            # Expect error between Stochastic CG and Deterministic CG
+            if type(optimizer) in (CoBA, CoBA2):
+                s = '\n'.join([str(e) for e in optimizer.scg_expect_errors])
+                notify(s)
+                with open(os.path.join(model_dir, f'scg_expect_errors_{name}.csv'), 'w') as f:
+                    f.write(s)
 
 
 def select_device() -> str:
@@ -114,36 +133,22 @@ def fix_seed(seed=0) -> None:
     torch.backends.cudnn.benchmark = False
 
 
-def result_to_csv(r: Result, name: str, optimizer_kw: ParamDict, result_dir: str) -> None:
+def worker_init_fn(worker_id):
+    random.seed(worker_id)
+
+
+def result_format(name: str, extension='csv') -> str:
+    ts = datetime.now().strftime('%y%m%d%H%M%S')
+    return f'{name}_{ts}.{extension}'
+
+
+def result_to_csv(r: Result, name: str, kw_optimizer: ParamDict, result_dir: str) -> None:
     df = DataFrame(r)
     df['optimizer'] = name
-    df['optimizer_parameters'] = str(optimizer_kw)
+    df['optimizer_parameters'] = str(kw_optimizer)
     df['epoch'] = np.arange(1, df.shape[0] + 1)
     df.set_index(['optimizer', 'optimizer_parameters', 'epoch'], drop=True, inplace=True)
 
     os.makedirs(result_dir, exist_ok=True)
     path = os.path.join(result_dir, result_format(name))
     df.to_csv(path, encoding='utf-8')
-
-
-def result_format(name: str, extension='csv') -> str:
-    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-    return f'{name}_{ts}.{extension}'
-
-
-def send_csv(path: str, body: str, to=None) -> None:
-    if os.path.isfile(ACCOUNT_JSON):
-        transmitter = GMailTransmitter()
-        subject = f'[実験結果] {os.path.basename(path)}'
-        if to is None:
-            to = transmitter.sender_account
-        transmitter.send(subject=subject, to=to, body=body, file_path=path, extension=os.path.splitext(path)[-1])
-
-
-def send_collected_csv(result_dir: str) -> None:
-    paths = [os.path.join(result_dir, f) for f in os.listdir(result_dir) if f[-4:] == '.csv' and f[:6] != 'result']
-    print('\n'.join(paths))
-    df = concat([read_csv(path, encoding='utf-8') for path in paths])
-    path = os.path.join(result_dir, 'result.csv')
-    df.to_csv(path, index=False, encoding='utf-8')
-    send_csv(path, body='')

@@ -5,24 +5,22 @@ import torch
 import torch.nn as nn
 from torch.nn import Module
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 
-from experiment.base_experiment import BaseExperiment, ResultDict
+from experiment.base import BaseExperiment, ResultDict
 from optimizer.base_optimizer import Optimizer
 
 
 class ExperimentMNIST(BaseExperiment):
-    def prepare_data_loader(self, batch_size: int, data_dir: str) -> Tuple[DataLoader, DataLoader]:
-        root = os.path.join(data_dir, 'mnist')
-        os.makedirs(root, exist_ok=True)
+    def __init__(self, **kwargs) -> None:
+        super(ExperimentMNIST, self).__init__(dataset_name='mnist', **kwargs)
 
-        train_data = MNIST(root, train=True, download=True, transform=ToTensor())
-        test_data = MNIST(root, train=False, download=True, transform=ToTensor())
-        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
-        return train_loader, test_loader
+    def prepare_data(self, train: bool, **kwargs) -> Dataset:
+        root = os.path.join(self.data_dir, 'mnist')
+        os.makedirs(root, exist_ok=True)
+        return MNIST(root, train=train, download=True, transform=ToTensor(), **kwargs)
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
         return CNN()

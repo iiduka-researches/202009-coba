@@ -8,7 +8,7 @@ from torchtext.data import BucketIterator, Field, LabelField
 from torchtext.datasets import IMDB
 
 from optimizer.base_optimizer import Optimizer
-from .base_experiment import BaseExperiment, ResultDict
+from .experiment import BaseExperiment, ResultDict
 
 
 class ExperimentIMDb(BaseExperiment):

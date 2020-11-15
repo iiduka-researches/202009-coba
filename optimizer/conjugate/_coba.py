@@ -1,17 +1,14 @@
 import math
-from typing import List
 
 import torch
 
 from optimizer.base_optimizer import Optimizer
-from optimizer.conjugate.conjugate_param2 import get_cg_param_fn
+from optimizer.conjugate.conjugate_param import get_cg_param_fn
 
 
-class CoBA2(Optimizer):
-    def __init__(self, params, period: int, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.0, amsgrad=False,
+class CoBA(Optimizer):
+    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.0, amsgrad=False,
                  cg_type='HS', lam=2.0, m=1e-3, a=1+1e-8) -> None:
-        if not 0 <= period:
-            raise ValueError("Invalid period: {}".format(period))
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:
@@ -26,17 +23,18 @@ class CoBA2(Optimizer):
             raise ValueError("Invalid m value: {}".format(m))
         if not 1.0 <= a:
             raise ValueError("Invalid a value: {}".format(a))
-        defaults = dict(period=period, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad,
+        defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad,
                         cg_type=cg_type, lam=lam, a=a, m=m)
-        super(CoBA2, self).__init__(params, defaults)
-        self.scg_expect_errors: List[float] = []
+        super(CoBA, self).__init__(params, defaults)
 
 
     def __setstate__(self, state):
-        super(CoBA2, self).__setstate__(state)
+        super(CoBA, self).__setstate__(state)
         for group in self.param_groups:
             group.setdefault('amsgrad', False)
             group.setdefault('cg_type', 'HS')
+            group.setdefault('m', 1e-3)
+            group.setdefault('a', 1+1e-5)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -52,7 +50,7 @@ class CoBA2(Optimizer):
 
         for group in self.param_groups:
             cg_param_fn = get_cg_param_fn(group['cg_type'])
-            for p in group['params']:
+            for i, p in enumerate(group['params']):
                 if p.grad is None:
                     continue
                 grad = p.grad
@@ -72,10 +70,8 @@ class CoBA2(Optimizer):
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state['max_exp_avg_sq'] = torch.zeros_like(p)
-                    state['deterministic_g'] = None
-                    state['deterministic_cg'] = None
-                    state['stochastic_g_accum'] = torch.zeros_like(p)
-                    state['stochastic_cg_accum'] = torch.zeros_like(p)
+                    state['grad_buffer'] = None
+                    state['conjugate_grad'] = None
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
                 if amsgrad:
@@ -90,40 +86,17 @@ class CoBA2(Optimizer):
                     # Decay the first and second moment running average coefficient
                     grad = grad.add(p, alpha=group['weight_decay'])
 
-                if state['deterministic_cg'] is None:
-                    # state['g_buf'] = grad.clone()
-                    state['stochastic_cg'] = (-grad).clone()
+                if state['conjugate_grad'] is None:
+                    state['grad_buffer'] = grad.clone()
+                    state['conjugate_grad'] = (-grad).clone()
                 else:
-                    d_cg = state['deterministic_cg']
-                    cg_param = cg_param_fn(grad, state['deterministic_g'], d_cg, group)
-                    # state['g_buf'] = grad.clone()
-                    state['stochastic_cg'] = -grad + group['m'] * cg_param * d_cg / (state['step'] ** group['a'])
+                    g_buf = state['grad_buffer']
+                    d_buf = state['conjugate_grad']
+                    cg_param = cg_param_fn(grad, g_buf, d_buf, group)
+                    state['grad_buffer'] = grad.clone()
+                    state['conjugate_grad'] = -grad + group['m'] * cg_param * d_buf / (state['step'] ** group['a'])
 
-                if state['step'] % group['period'] == 0:
-                    # Expected value calculation for each epoch.
-                    deterministic_g = state['stochastic_g_accum'] / group['period']
-                    if state['deterministic_cg'] is None:
-                        state['deterministic_cg'] = - deterministic_g
-                    else:
-                        deterministic_cg_param = \
-                            cg_param_fn(deterministic_g, state['deterministic_g'], state['deterministic_cg'], group)
-                        state['deterministic_cg'] = \
-                            - deterministic_g + deterministic_cg_param * state['deterministic_cg']
-
-                    # Snapshot error between Stochastic CG and deterministic CG.
-                    scg_expect = state['stochastic_g_accum'] / group['period']
-                    self.scg_expect_errors.append(
-                        torch.norm(state['deterministic_cg'] - scg_expect).clone().cpu().item()
-                    )
-
-                    # Reset for a next epoch.
-                    state['stochastic_cg_accum'] = state['stochastic_g_accum'] = torch.zeros_like(p)
-                    state['deterministic_g'] = deterministic_g.clone()
-                else:
-                    state['stochastic_g_accum'] += grad
-                    state['stochastic_cg_accum'] += state['stochastic_cg']
-
-                exp_avg.mul_(beta1).add_(state['stochastic_cg'], alpha=1 - beta1)
+                exp_avg.mul_(beta1).add_(state['conjugate_grad'], alpha=1 - beta1)
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
                 if amsgrad:
                     # Maintains the maximum of all 2nd moment running avg. till now
