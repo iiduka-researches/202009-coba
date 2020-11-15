@@ -22,7 +22,7 @@ ResultDict = Dict[str, float]
 Result = Dict[str, Sequence[float]]
 
 
-class Experiment(metaclass=ABCMeta):
+class BaseExperiment(metaclass=ABCMeta):
     def __init__(self, batch_size: int, max_epoch: int, dataset_name: str, model_name='model',
                  data_dir='./dataset/data/') -> None:
         self.dataset_name = dataset_name

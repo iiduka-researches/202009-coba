@@ -8,8 +8,8 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import ToTensor
 
-from experiment.experiment import Experiment, ResultDict
-from model.resnet import resnet20, resnet32, resnet44, resnet56, resnet110
+from experiment.base_experiment import BaseExperiment, ResultDict
+from model import resnet20, resnet32, resnet44, resnet56, resnet110
 from optimizer.base_optimizer import Optimizer
 
 MODEL_DICT = dict(
@@ -21,7 +21,7 @@ MODEL_DICT = dict(
 )
 
 
-class ExperimentCIFAR10(Experiment):
+class ExperimentCIFAR10(BaseExperiment):
     def prepare_data_loader(self, batch_size: int, data_dir: str) -> Tuple[DataLoader, DataLoader, dict]:
         root = os.path.join(data_dir, 'cifar10')
         os.makedirs(root, exist_ok=True)

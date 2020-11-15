@@ -8,10 +8,10 @@ from torchtext.data import BucketIterator, Field, LabelField
 from torchtext.datasets import IMDB
 
 from optimizer.base_optimizer import Optimizer
-from .experiment import Experiment, ResultDict
+from .base_experiment import BaseExperiment, ResultDict
 
 
-class ExperimentIMDb(Experiment):
+class ExperimentIMDb(BaseExperiment):
     def prepare_data_loader(self, batch_size: int, data_dir: str) -> Tuple[DataLoader, DataLoader, dict]:
         root = os.path.join(data_dir, 'imdb')
         os.makedirs(root, exist_ok=True)

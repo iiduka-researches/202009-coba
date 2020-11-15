@@ -9,11 +9,11 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 
-from experiment.experiment import Experiment, ResultDict
+from experiment.base_experiment import BaseExperiment, ResultDict
 from optimizer.base_optimizer import Optimizer
 
 
-class ExperimentMNIST(Experiment):
+class ExperimentMNIST(BaseExperiment):
     def prepare_data_loader(self, batch_size: int, data_dir: str) -> Tuple[DataLoader, DataLoader]:
         root = os.path.join(data_dir, 'mnist')
         os.makedirs(root, exist_ok=True)
@@ -24,8 +24,8 @@ class ExperimentMNIST(Experiment):
         test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
         return train_loader, test_loader
 
-    def prepare_model(self, model_name: Optional[str]) -> Module:
-        return Net()
+    def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
+        return CNN()
 
     def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader) -> Tuple[Module, ResultDict]:
         running_loss = 0.0
@@ -70,9 +70,9 @@ class ExperimentMNIST(Experiment):
         return dict(test_loss=running_loss / i, test_accuracy=correct / total)
 
 
-class Net(nn.Module):
+class CNN(nn.Module):
     def __init__(self):
-        super(Net, self).__init__()
+        super(CNN, self).__init__()
         self.conv_net = nn.Sequential(
             nn.Conv2d(1, 32, 5),
             nn.MaxPool2d(2),
