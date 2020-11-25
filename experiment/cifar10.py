@@ -23,7 +23,7 @@ MODEL_DICT = dict(
 
 class ExperimentCIFAR10(BaseExperiment):
     def __init__(self, **kwargs) -> None:
-        super(ExperimentCIFAR10, self).__init__(dataset_name='mnist', **kwargs)
+        super(ExperimentCIFAR10, self).__init__(dataset_name='cifar10', **kwargs)
 
     def prepare_data(self, train: bool, **kwargs) -> Dataset:
         root = os.path.join(self.data_dir, 'cifar10')

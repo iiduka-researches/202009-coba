@@ -15,13 +15,14 @@ from tqdm import tqdm
 from optimizer.base_optimizer import Optimizer
 from optimizer.conjugate.coba import CoBA
 from optimizer.conjugate.coba2 import CoBA2
-from utils.gmail.transmitter import GMailTransmitter, ACCOUNT_JSON
 from utils.line.notify import notify, notify_error
 
 ParamDict = Dict[str, Any]
 OptimDict = Dict[str, Tuple[Any, ParamDict]]
 ResultDict = Dict[str, float]
 Result = Dict[str, Sequence[float]]
+
+SEP = '_'
 
 
 class BaseExperiment(metaclass=ABCMeta):
@@ -78,12 +79,18 @@ class BaseExperiment(metaclass=ABCMeta):
     @notify_error
     def execute(self, optimizers: OptimDict, result_dir='./result', seed=0) -> None:
         model_dir = os.path.join(result_dir, self.dataset_name, self.model_name)
+        os.makedirs(model_dir, exist_ok=True)
         train_loader = DataLoader(self.train_data,  batch_size=self.batch_size, shuffle=True,
                                   worker_init_fn=worker_init_fn, **self.kw_loader)
         test_loader = DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False,
                                  worker_init_fn=worker_init_fn, **self.kw_loader)
         period = len(train_loader)
         for name, (optimizer_cls, kw_optimizer) in optimizers.items():
+            path = os.path.join(model_dir, result_format(name))
+
+            if exist_result(name, model_dir):
+                continue
+
             fix_seed(seed)
             if 'CoBA' in name:
                 kw_optimizer['period'] = period
@@ -92,14 +99,12 @@ class BaseExperiment(metaclass=ABCMeta):
             optimizer = optimizer_cls(net.parameters(), **kw_optimizer, **self.kw_optimizer)
             _, result = self.train(net=net, optimizer=optimizer, train_loader=train_loader, test_loader=test_loader)
             result_to_csv(result, name=name, kw_optimizer=optimizer.__dict__.get('defaults', kw_optimizer),
-                          result_dir=model_dir)
-
+                          path=path)
             notify(f'[{name}] Done.')
 
             # Expect error between Stochastic CG and Deterministic CG
             if type(optimizer) in (CoBA, CoBA2):
                 s = '\n'.join([str(e) for e in optimizer.scg_expect_errors])
-                notify(s)
                 with open(os.path.join(model_dir, f'scg_expect_errors_{name}.csv'), 'w') as f:
                     f.write(s)
 
@@ -137,18 +142,22 @@ def worker_init_fn(worker_id):
     random.seed(worker_id)
 
 
-def result_format(name: str, extension='csv') -> str:
+def result_format(name: str, sep=SEP, extension='csv') -> str:
     ts = datetime.now().strftime('%y%m%d%H%M%S')
-    return f'{name}_{ts}.{extension}'
+    return f'{name}{sep}{ts}.{extension}'
 
 
-def result_to_csv(r: Result, name: str, kw_optimizer: ParamDict, result_dir: str) -> None:
+def exist_result(name: str, result_dir: str, sep=SEP) -> bool:
+    for p in os.listdir(result_dir):
+        if os.path.basename(p).split(sep)[0] == name:
+            return True
+    return False
+
+
+def result_to_csv(r: Result, name: str, kw_optimizer: ParamDict, path: str) -> None:
     df = DataFrame(r)
     df['optimizer'] = name
     df['optimizer_parameters'] = str(kw_optimizer)
     df['epoch'] = np.arange(1, df.shape[0] + 1)
     df.set_index(['optimizer', 'optimizer_parameters', 'epoch'], drop=True, inplace=True)
-
-    os.makedirs(result_dir, exist_ok=True)
-    path = os.path.join(result_dir, result_format(name))
     df.to_csv(path, encoding='utf-8')
