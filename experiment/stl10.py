@@ -3,39 +3,33 @@ from typing import Tuple, Optional
 
 import torch
 from torch.nn import Module, CrossEntropyLoss
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import STL10
 from torchvision.models import inception_v3
-from torchvision.transforms import CenterCrop, Compose, Normalize, RandomHorizontalFlip, Resize, ToTensor
+from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from optimizer.base_optimizer import Optimizer
-from .experiment import BaseExperiment, ResultDict
+from .base import BaseExperiment, ResultDict
 
 
 class ExperimentSTL10(BaseExperiment):
-    def prepare_data_loader(self, batch_size: int, data_dir: str) -> Tuple[DataLoader, DataLoader]:
-        root = os.path.join(data_dir, self.dataset_name)
+    def __init__(self, **kwargs) -> None:
+        super(ExperimentSTL10, self).__init__(dataset_name='stl10', **kwargs)
+
+    def prepare_data(self, train: bool, **kwargs) -> Dataset:
+        root = os.path.join(self.data_dir, self.dataset_name)
         os.makedirs(root, exist_ok=True)
-
-        transform_train = Compose([
-            # RandomHorizontalFlip(),
+        transform = Compose([
             Resize(299),
             CenterCrop(299),
             ToTensor(),
             Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
-        transform_test = Compose([
-            Resize(299),
-            CenterCrop(299),
-            ToTensor(),
-            Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-        ])
-        train_data = STL10(root, split='train', download=True, transform=transform_train)
-        test_data = STL10(root, split='test', download=True, transform=transform_test)
-        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
-        return train_loader, test_loader
+        if train:
+            return STL10(root, split='train', download=True, transform=transform)
+        else:
+            return STL10(root, split='test', download=True, transform=transform)
 
-    def prepare_model(self, model_name: Optional[str]) -> Module:
+    def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
         r"""Inception v3 model architecture from
             `"Rethinking the Inception Architecture for Computer Vision" <http://arxiv.org/abs/1512.00567>`_.
         """

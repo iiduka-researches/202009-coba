@@ -3,33 +3,35 @@ from typing import Tuple, Optional
 
 import torch
 from torch.nn import Embedding, Linear, LSTM, Module, BCEWithLogitsLoss
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchtext.data import BucketIterator, Field, LabelField
 from torchtext.datasets import IMDB
 
 from optimizer.base_optimizer import Optimizer
-from .experiment import BaseExperiment, ResultDict
+from .base import BaseExperiment, ResultDict
 
 
 class ExperimentIMDb(BaseExperiment):
-    def prepare_data_loader(self, batch_size: int, data_dir: str) -> Tuple[DataLoader, DataLoader, dict]:
-        root = os.path.join(data_dir, 'imdb')
-        os.makedirs(root, exist_ok=True)
+    def __init__(self, **kwargs):
+        super(ExperimentIMDb, self).__init__(dataset_name='imdb', **kwargs)
 
-        text = Field(sequential=True, fix_length=80, batch_first=True, lower=True)
-        label = LabelField(sequential=False)
-        train_data, test_data = IMDB.splits(root=root, text_field=text, label_field=label)
+        # DL the Dataset and split
+        self.text = Field(sequential=True, fix_length=80, batch_first=True, lower=True)
+        self.label = LabelField(sequential=False)
+        root = os.path.join(self.data_dir, 'imdb')
+        os.makedirs(root, exist_ok=True)
+        self.train_data, self.test_data = IMDB.splits(root=root, text_field=self.text, label_field=self.label)
 
         # build the vocabulary
-        text.build_vocab(train_data, max_size=25000)
-        label.build_vocab(train_data)
-        vocab_size = len(text.vocab)
-        print(vocab_size)
+        self.text.build_vocab(self.train_data, max_size=25000)
+        self.label.build_vocab(self.train_data)
+        self.vocab_size = len(self.text.vocab)
 
-        # train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-        # test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
-        train_loader, test_loader = BucketIterator.splits((train_data, test_data), batch_size=batch_size)
-        return train_loader, test_loader, dict(in_dim=vocab_size)
+    def prepare_data(self, train: bool, **kwargs) -> Dataset:
+        if train:
+            return self.train_data
+        else:
+            return self.test_data
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
         return Net(**kwargs)

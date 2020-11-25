@@ -89,7 +89,10 @@ class BaseExperiment(metaclass=ABCMeta):
             path = os.path.join(model_dir, result_format(name))
 
             if exist_result(name, model_dir):
+                notify(f'{name} already exists.')
                 continue
+            else:
+                notify(f'{name}')
 
             fix_seed(seed)
             if 'CoBA' in name:
@@ -100,7 +103,6 @@ class BaseExperiment(metaclass=ABCMeta):
             _, result = self.train(net=net, optimizer=optimizer, train_loader=train_loader, test_loader=test_loader)
             result_to_csv(result, name=name, kw_optimizer=optimizer.__dict__.get('defaults', kw_optimizer),
                           path=path)
-            notify(f'[{name}] Done.')
 
             # Expect error between Stochastic CG and Deterministic CG
             if type(optimizer) in (CoBA, CoBA2):
@@ -149,7 +151,7 @@ def result_format(name: str, sep=SEP, extension='csv') -> str:
 
 def exist_result(name: str, result_dir: str, sep=SEP) -> bool:
     for p in os.listdir(result_dir):
-        if os.path.basename(p).split(sep)[0] == name:
+        if SEP.join(os.path.basename(p).split(sep)[:-1]) == name:
             return True
     return False
 
