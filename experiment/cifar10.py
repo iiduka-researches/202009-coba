@@ -53,7 +53,8 @@ class ExperimentCIFAR10(BaseExperiment):
             if loss != loss:
                 from utils.line.notify import notify
                 notify(f'{i}: loss is NaN...')
-                raise ValueError('loss is NaN...')
+                # raise ValueError('loss is NaN...')
+                break
 
             loss.backward()
             optimizer.step(closure=None)
