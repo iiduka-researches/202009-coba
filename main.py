@@ -1,4 +1,10 @@
 from typing import Any, Dict, Tuple, Union
+from warnings import simplefilter
+simplefilter('error')
+
+from torch.optim.sgd import SGD
+from torch.optim.adagrad import Adagrad
+from torch.optim.rmsprop import RMSprop
 
 from experiment.avazu import ExperimentAvazu
 from experiment.cifar10 import ExperimentCIFAR10
@@ -17,13 +23,15 @@ OptimizerDict = Dict[str, Tuple[Any, Dict[str, Any]]]
 def prepare_optimizers(lr: float) -> OptimizerDict:
     types = ('HS', 'FR', 'PRP', 'DY', 'HZ')
     kw_const = dict(a=1, m=1)
+    kw_coefs = [dict(m=m, a=a) for m in (1e-2, 1e-3, 1e-4) for a in (1+1e-4, 1+1e-5, 1+1e-6, 1+1e-7)]
     return dict(
         Adam_Existing=(Adam, dict(lr=lr, amsgrad=False)),
         AMSGrad_Existing=(Adam, dict(lr=lr, amsgrad=True)),
-        **{f'CoBAMSGrad_{t}': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t)) for t in types},
-        **{f'CoBAMSGrad2_{t}': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t)) for t in types},
-        **{f'CoBAMSGrad_{t}(const)': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
-        **{f'CoBAMSGrad2_{t}(const)': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
+        **{f'CoBAMSGrad_{t}': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t, **kw))
+           for t in types for kw in kw_coefs},
+        # **{f'CoBAMSGrad2_{t}': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t)) for t in types},
+        # **{f'CoBAMSGrad_{t}(const)': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
+        # **{f'CoBAMSGrad2_{t}(const)': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
     )
 
 
@@ -45,9 +53,9 @@ def mnist() -> None:
     e.execute(optimizers)
 
 
-def cifar10() -> None:
+def cifar10(model='DenseNetBC24') -> None:
     optimizers = prepare_optimizers(lr=1e-3)
-    e = ExperimentCIFAR10(max_epoch=200, batch_size=128, model_name='ResNet44')
+    e = ExperimentCIFAR10(max_epoch=300, batch_size=256, model_name=model)
     e(optimizers)
 
 
@@ -63,8 +71,11 @@ if __name__ == '__main__':
     d = dict(
         avazu=avazu,
         imdb=imdb,
-        mnist=mnist,
         cifar10=cifar10,
-        stl10=stl10,
+        # stl10=stl10,
     )
-    d[argv[1]]()
+    experiment = argv[1]
+    kw: Dict[str, Any] = dict()
+    if len(argv) > 2:
+        kw['model'] = argv[2]
+    d[experiment](**kw)

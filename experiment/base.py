@@ -25,6 +25,10 @@ Result = Dict[str, Sequence[float]]
 SEP = '_'
 
 
+class LossNaError(Exception):
+    pass
+
+
 class BaseExperiment(ABC, metaclass=ABCMeta):
     def __init__(self, batch_size: int, max_epoch: int, dataset_name: str, kw_dataset=None, kw_loader=None,
                  model_name='model', kw_model=None, kw_optimizer=None, data_dir='./dataset/data/') -> None:
@@ -68,7 +72,11 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
         results = []
         for epoch in tqdm(range(self.max_epoch)):
             start = time()
-            net, train_result = self.epoch_train(net, optimizer=optimizer, train_loader=train_loader)
+            try:
+                net, train_result = self.epoch_train(net, optimizer=optimizer, train_loader=train_loader)
+            except LossNaError as e:
+                print(e)
+                break
             validate_result = self.epoch_validate(net, test_loader=test_loader)
             result = arrange_result_as_dict(t=time() - start, train=train_result, validate=validate_result)
             results.append(result)

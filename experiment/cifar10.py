@@ -8,9 +8,11 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import ToTensor
 
-from experiment.base import BaseExperiment, ResultDict
+from experiment.base import BaseExperiment, LossNaError, ResultDict
+from model.densenet import densenet_bc
 from model.resnet import resnet20, resnet32, resnet44, resnet56, resnet110
 from optimizer.base_optimizer import Optimizer
+
 
 MODEL_DICT = dict(
     ResNet20=resnet20,
@@ -18,6 +20,7 @@ MODEL_DICT = dict(
     ResNet44=resnet44,
     ResNet56=resnet56,
     ResNet110=resnet110,
+    DenseNetBC24=densenet_bc,
 )
 
 
@@ -53,8 +56,7 @@ class ExperimentCIFAR10(BaseExperiment):
             if loss != loss:
                 from utils.line.notify import notify
                 notify(f'{i}: loss is NaN...')
-                # raise ValueError('loss is NaN...')
-                break
+                raise LossNaError('loss is NaN...')
 
             loss.backward()
             optimizer.step(closure=None)
@@ -83,4 +85,3 @@ class ExperimentCIFAR10(BaseExperiment):
                 correct += (predicted == labels).sum().item()
                 i += 1
         return dict(test_loss=running_loss / i, test_accuracy=correct / total)
-
