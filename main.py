@@ -29,7 +29,7 @@ def prepare_optimizers(lr: float) -> OptimizerDict:
 
 def avazu() -> None:
     optimizers = prepare_optimizers(lr=1e-4)
-    e = ExperimentAvazu(max_epoch=10, batch_size=1024)
+    e = ExperimentAvazu(max_epoch=10, batch_size=1024, num_workers=4, pin_memory=True)
     e.execute(optimizers)
 
 

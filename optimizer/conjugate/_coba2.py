@@ -89,7 +89,7 @@ class CoBA2(Optimizer):
                     # Decay the first and second moment running average coefficient
                     grad = grad.add(p, alpha=group['weight_decay'])
 
-                if state['deterministic_cg'] is None :
+                if state['deterministic_cg'] is None:
                     # state['g_buf'] = grad.clone()
                     state['stochastic_cg'] = (-grad).clone()
                 else:

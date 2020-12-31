@@ -1,4 +1,4 @@
-from abc import ABCMeta, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from datetime import datetime
 import os
 import random
@@ -25,7 +25,7 @@ Result = Dict[str, Sequence[float]]
 SEP = '_'
 
 
-class BaseExperiment(metaclass=ABCMeta):
+class BaseExperiment(ABC, metaclass=ABCMeta):
     def __init__(self, batch_size: int, max_epoch: int, dataset_name: str, kw_dataset=None, kw_loader=None,
                  model_name='model', kw_model=None, kw_optimizer=None, data_dir='./dataset/data/') -> None:
         r"""Base class for all experiments.
@@ -85,6 +85,7 @@ class BaseExperiment(metaclass=ABCMeta):
         test_loader = DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False,
                                  worker_init_fn=worker_init_fn, **self.kw_loader)
         period = len(train_loader)
+        print(period) # debug
         for name, (optimizer_cls, kw_optimizer) in optimizers.items():
             path = os.path.join(model_dir, result_format(name))
 
