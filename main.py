@@ -44,7 +44,7 @@ def prepare_optimizers(lr: float) -> OptimizerDict:
 
 def avazu() -> None:
     optimizers = prepare_optimizers(lr=1e-4)
-    e = ExperimentAvazu(max_epoch=10, batch_size=1024, num_workers=4, pin_memory=True)
+    e = ExperimentAvazu(max_epoch=10, batch_size=1024, kw_loader=dict(num_workers=4, pin_memory=True))
     e.execute(optimizers)
 
 
@@ -62,13 +62,13 @@ def mnist() -> None:
 
 def cifar10(model='DenseNetBC24') -> None:
     optimizers = prepare_optimizers(lr=1e-3)
-    e = ExperimentCIFAR10(max_epoch=300, batch_size=256, model_name=model)
+    e = ExperimentCIFAR10(max_epoch=200, batch_size=128, model_name=model, kw_loader=dict(num_workers=4, pin_memory=True))
     e(optimizers)
 
 
 def coco() -> None:
     optimizers = prepare_optimizers(lr=1e-3)
-    e = ExperimentCOCO(max_epoch=100, batch_size=128)
+    e = ExperimentCOCO(max_epoch=100, batch_size=128, kw_loader=dict(num_workers=4, pin_memory=True))
     e(optimizers)
 
 
