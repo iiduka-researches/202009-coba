@@ -84,7 +84,6 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
                 notify(str(result))
         return net, concat_dicts(results)
 
-    @notify_error
     def execute(self, optimizers: OptimDict, result_dir='./result', seed=0) -> None:
         model_dir = os.path.join(result_dir, self.dataset_name, self.model_name)
         os.makedirs(model_dir, exist_ok=True)

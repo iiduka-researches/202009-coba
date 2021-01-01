@@ -8,6 +8,7 @@ from torch.optim.rmsprop import RMSprop
 
 from experiment.avazu import ExperimentAvazu
 from experiment.cifar10 import ExperimentCIFAR10
+from experiment.coco import ExperimentCOCO
 from experiment.imdb import ExperimentIMDb
 from experiment.mnist import ExperimentMNIST
 from experiment.stl10 import ExperimentSTL10
@@ -23,12 +24,18 @@ OptimizerDict = Dict[str, Tuple[Any, Dict[str, Any]]]
 def prepare_optimizers(lr: float) -> OptimizerDict:
     types = ('HS', 'FR', 'PRP', 'DY', 'HZ')
     kw_const = dict(a=1, m=1)
-    kw_coefs = [dict(m=m, a=a) for m in (1e-2, 1e-3, 1e-4) for a in (1+1e-4, 1+1e-5, 1+1e-6, 1+1e-7)]
+    # m_dict = dict(m2=1e-2, m3=1e-3, m4=1e-4)
+    m_dict = dict(m3=1e-3)
+    # a_dict = dict(a4=1+1e-4, a5=1+1e-5, a6=1+1e-6, a7=1+1e-7)
+    a_dict = dict(a6=1+1e-6)
     return dict(
+        Momentum_Existing=(SGD, dict(lr=lr, momentum=.9)),
+        AdaGrad_Existing=(Adagrad, dict(lr=lr)),
+        RMSProp_Existing=(RMSprop, dict(lr=lr)),
         Adam_Existing=(Adam, dict(lr=lr, amsgrad=False)),
         AMSGrad_Existing=(Adam, dict(lr=lr, amsgrad=True)),
-        **{f'CoBAMSGrad_{t}': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t, **kw))
-           for t in types for kw in kw_coefs},
+        **{f'CoBAMSGrad_{t}_{sm}_{sa}': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t, m=m, a=a))
+           for t in types for sm, m in m_dict.items() for sa, a in a_dict.items()},
         # **{f'CoBAMSGrad2_{t}': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t)) for t in types},
         # **{f'CoBAMSGrad_{t}(const)': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
         # **{f'CoBAMSGrad2_{t}(const)': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
@@ -59,6 +66,12 @@ def cifar10(model='DenseNetBC24') -> None:
     e(optimizers)
 
 
+def coco() -> None:
+    optimizers = prepare_optimizers(lr=1e-3)
+    e = ExperimentCOCO(max_epoch=100, batch_size=128)
+    e(optimizers)
+
+
 def stl10() -> None:
     optimizers = prepare_optimizers(lr=1e-3)
     e = ExperimentSTL10(dataset_name='stl10', max_epoch=200, batch_size=128, model_name='Inception3')
@@ -73,6 +86,7 @@ if __name__ == '__main__':
         imdb=imdb,
         cifar10=cifar10,
         # stl10=stl10,
+        coco=coco,
     )
     experiment = argv[1]
     kw: Dict[str, Any] = dict()
