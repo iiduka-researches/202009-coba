@@ -31,7 +31,6 @@ class CoBA(Optimizer):
         super(CoBA, self).__init__(params, defaults)
         self.scg_expect_errors: List[float] = []
 
-
     def __setstate__(self, state):
         super(CoBA, self).__setstate__(state)
         for group in self.param_groups:
@@ -50,8 +49,8 @@ class CoBA(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
-        errors = []
         for group in self.param_groups:
+            errors = []
             cg_param_fn = get_cg_param_fn(group['cg_type'])
             for p in group['params']:
                 if p.grad is None:
@@ -142,6 +141,7 @@ class CoBA(Optimizer):
 
                 p.addcdiv_(exp_avg, denom, value=step_size)
 
-        self.scg_expect_errors.append(sum(errors) / len(errors))
+            if errors:
+                self.scg_expect_errors.append(sum(errors) / len(errors))
 
         return loss

@@ -49,8 +49,8 @@ class CoBA2(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
-        errors = []
         for group in self.param_groups:
+            errors = []
             cg_param_fn = get_cg_param_fn(group['cg_type'])
             for p in group['params']:
                 if p.grad is None:
@@ -139,7 +139,8 @@ class CoBA2(Optimizer):
                     step_size = group['lr'] / bias_correction1
 
                 p.addcdiv_(exp_avg, denom, value=step_size)
-
-            self.scg_expect_errors.append(sum(errors) / len(errors))
+                
+            if errors:
+                self.scg_expect_errors.append(sum(errors) / len(errors))
 
         return loss
