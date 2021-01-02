@@ -29,9 +29,7 @@ class ExperimentCIFAR10(BaseExperiment):
         super(ExperimentCIFAR10, self).__init__(dataset_name='cifar10', **kwargs)
 
     def prepare_data(self, train: bool, **kwargs) -> Dataset:
-        root = os.path.join(self.data_dir, 'cifar10')
-        os.makedirs(root, exist_ok=True)
-        return CIFAR10(root, train=train, download=True, transform=ToTensor(), **kwargs)
+        return CIFAR10(root=self.data_dir, train=train, download=True, transform=ToTensor(), **kwargs)
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
         if model_name in MODEL_DICT:

@@ -18,9 +18,7 @@ class ExperimentMNIST(BaseExperiment):
         super(ExperimentMNIST, self).__init__(dataset_name='mnist', **kwargs)
 
     def prepare_data(self, train: bool, **kwargs) -> Dataset:
-        root = os.path.join(self.data_dir, 'mnist')
-        os.makedirs(root, exist_ok=True)
-        return MNIST(root, train=train, download=True, transform=ToTensor(), **kwargs)
+        return MNIST(root=self.data_dir, train=train, download=True, transform=ToTensor(), **kwargs)
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
         return CNN()

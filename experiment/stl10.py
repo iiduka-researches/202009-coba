@@ -16,8 +16,6 @@ class ExperimentSTL10(BaseExperiment):
         super(ExperimentSTL10, self).__init__(dataset_name='stl10', **kwargs)
 
     def prepare_data(self, train: bool, **kwargs) -> Dataset:
-        root = os.path.join(self.data_dir, self.dataset_name)
-        os.makedirs(root, exist_ok=True)
         transform = Compose([
             Resize(299),
             CenterCrop(299),
@@ -25,9 +23,9 @@ class ExperimentSTL10(BaseExperiment):
             Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
         if train:
-            return STL10(root, split='train', download=True, transform=transform)
+            return STL10(root=self.data_dir, split='train', download=True, transform=transform)
         else:
-            return STL10(root, split='test', download=True, transform=transform)
+            return STL10(root=self.data_dir, split='test', download=True, transform=transform)
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
         r"""Inception v3 model architecture from

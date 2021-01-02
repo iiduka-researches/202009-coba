@@ -1,65 +1,67 @@
+import json
 import os
-from typing import List, Tuple, Optional
+from typing import Tuple, Optional
 
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
+import torch
 import torch.tensor
 from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
-from torchvision.transforms import ToTensor
-from torchvision.datasets import CocoDetection
-from torchvision.datasets.utils import download_and_extract_archive
 from torchvision.models.detection import fasterrcnn_resnet50_fpn, maskrcnn_resnet50_fpn
+from tqdm import tqdm
 
-import sys
-sys.path.append('.')
-sys.path.append('..')
-from optimizer.base_optimizer import Optimizer
-from experiment.base import BaseExperiment, ResultDict
+from dataset.coco import COCODataset
+from experiment.base import BaseExperiment, ResultDict, Optimizer
+
+ANN_FILE = 'dataset/data/coco2017/annotations/instances_val2017.json'
+STATS_LABELS = (
+    'Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ]',
+    'Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ]',
+    'Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ]',
+    'Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ]',
+    'Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ]',
+    'Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ]',
+    'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ]',
+    'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ]',
+    'Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ]',
+    'Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ]',
+    'Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ]',
+    'Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ]',
+)
 
 
 def collate_fn(batch):
-    return tuple(zip(*batch))
+    images, targets = tuple(zip(*batch))
+    images = torch.stack(images)
+    return images, targets
 
 
-def arrange_box(b: List[float]) -> List[float]:
-    b[2] += b[0]
-    b[3] += b[1]
-    return b[:]
+def convert_to_xywh(boxes):
+    xmin, ymin, xmax, ymax = boxes.unbind(1)
+    return torch.stack((xmin, ymin, xmax - xmin, ymax - ymin), dim=1)
 
 
-def target_transform(target):
-    """
-    {'segmentation': [[587.72, 58.39, 578.34, 57.65, 572.41, 55.92, 573.64, 51.47, 582.29, 47.28, 586.24, 48.26]],
-     'area': 120.21155000000036, 'iscrowd': 0, 'image_id': 510078, 'bbox': [572.41, 47.28, 15.31, 11.11],
-     'category_id': 3, 'id': 2046811}
-    """
-    return [dict(boxes=torch.tensor(arrange_box(t['bbox']), dtype=torch.float).reshape(1, -1),
-                 labels=torch.tensor(t['category_id'], dtype=torch.int).reshape(1, -1)) for t in target]
+def arrange(target, output):
+    image_id = target["image_id"].item()
+    boxes = convert_to_xywh(output['boxes']).tolist()
+    scores = output['scores'].tolist()
+    labels = output['labels'].tolist()
+    return [dict(image_id=image_id, category_id=label, bbox=box, score=score)
+            for label, box, score in zip(labels, boxes, scores)]
 
 
 class ExperimentCOCO(BaseExperiment):
     def __init__(self, **kwargs) -> None:
-        super(ExperimentCOCO, self).__init__(dataset_name='coco',
-                                             kw_dataset=dict(transform=ToTensor(), target_transform=target_transform),
-                                             kw_loader=dict(collate_fn=collate_fn), **kwargs)
+        self.coco = None
+        super(ExperimentCOCO, self).__init__(dataset_name='coco2017', **kwargs)
+        self.kw_loader.setdefault('collate_fn', collate_fn)
 
     def prepare_data(self, train: bool, **kwargs) -> Dataset:
-        root = os.path.join(self.data_dir, 'coco')
-        os.makedirs(root, exist_ok=True)
-
-        # check and download
-        if not os.path.isdir(os.path.join(root, 'train2017')):
-            download_and_extract_archive('http://images.cocodataset.org/zips/train2017.zip', root)
-        if not os.path.isdir(os.path.join(root, 'val2017')):
-            download_and_extract_archive('http://images.cocodataset.org/zips/val2017.zip', root)
-        if not os.path.isdir(os.path.join(root, 'annotations')):
-            download_and_extract_archive('http://images.cocodataset.org/annotations/annotations_trainval2017.zip', root)
-
-        if train:
-            return CocoDetection(root=os.path.join(root, 'train2017'),
-                                 annFile=os.path.join(root, 'annotations/instances_train2017.json'), **kwargs)
-        else:
-            return CocoDetection(root=os.path.join(root, 'val2017'),
-                                 annFile=os.path.join(root, 'annotations/instances_val2017.json'), **kwargs)
+        dataset = COCODataset(root=self.data_dir, train=train, **kwargs)
+        if self.coco is None:
+            self.coco = COCO(os.path.join(self.data_dir, 'annotations/instances_val2017.json'))
+        return dataset
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
         if model_name:
@@ -68,15 +70,50 @@ class ExperimentCOCO(BaseExperiment):
         else:
             raise ValueError(f'model_name: {model_name}.')
 
-    def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader) -> Tuple[Module, ResultDict]:
-        for images, targets in train_loader:
-            images = list(image.to(self.device) for image in images)
-            targets = [{k: v.to(self.device) for k, v in t.items()} for target in targets for t in target]
+    def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader, **kwargs) -> Tuple[Module, ResultDict]:
+        """
+        outputs = {
+            'loss_classifier': tensor(5.7116, grad_fn=<NllLossBackward>),
+            'loss_box_reg': tensor(0.0040, grad_fn=<DivBackward0>),
+            'loss_objectness': tensor(0.6018, grad_fn=<BinaryCrossEntropyWithLogitsBackward>),
+            'loss_rpn_box_reg': tensor(0.5090, grad_fn=<DivBackward0>)
+        }
+        """
+        net.train()
+        i = 0
+        running_loss_dict: ResultDict = dict()
+        for images, targets in tqdm(train_loader, total=len(train_loader)):
+            images = list(image.to(self.device) for image, target in zip(images, targets) if target)
+            targets = [{k: v.to(self.device) for k, v in target.items()} for target in targets if target]
+            loss_dict = net(images, targets)
+            loss = torch.cat([l.reshape(1) for _, l in loss_dict.items()]).sum()
+            running_loss_dict = {k: running_loss_dict.get(k, .0) + v.item() for k, v in loss_dict.items()}
+
             optimizer.zero_grad()
-            outputs = net(images, targets)
-            break
+            loss.backward()
+            optimizer.step(closure=None)
+            i += 1
 
-        return net, outputs
+        return net, {f'train_{k}': v / i for k, v in running_loss_dict.items()}
 
+    @torch.no_grad()
     def epoch_validate(self, net: Module, test_loader: DataLoader, **kwargs) -> ResultDict:
-        pass
+        net.eval()
+        res = []
+        for images, targets in test_loader:
+            images = list(image.to(self.device) for image, target in zip(images, targets) if target)
+            targets = [{k: v.to(self.device) for k, v in target.items()} for target in targets if target]
+
+            outputs = net(images)
+            outputs = [{k: v.to('cpu') for k, v in t.items()} for t in outputs]
+            res.extend([d for target, output in zip(targets, outputs) for d in arrange(target, output)])
+
+        """
+        coco_dt = self.coco.loadRes(res)
+        coco_eval = COCOeval(self.coco, coco_dt, 'bbox')
+        coco_eval.evaluate()
+        coco_eval.accumulate()
+        stats = coco_eval.stats
+        return dict(zip(STATS_LABELS, stats))
+        """
+        return dict(test_result=json.dumps(res))

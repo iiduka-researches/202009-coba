@@ -18,9 +18,7 @@ class ExperimentIMDb(BaseExperiment):
         # DL the Dataset and split
         self.text = Field(sequential=True, fix_length=80, batch_first=True, lower=True)
         self.label = LabelField(sequential=False)
-        root = os.path.join(self.data_dir, 'imdb')
-        os.makedirs(root, exist_ok=True)
-        self.train_data, self.test_data = IMDB.splits(root=root, text_field=self.text, label_field=self.label)
+        self.train_data, self.test_data = IMDB.splits(root=self.data_dir, text_field=self.text, label_field=self.label)
 
         # build the vocabulary
         self.text.build_vocab(self.train_data, max_size=25000)

@@ -19,8 +19,8 @@ from utils.line.notify import notify, notify_error
 
 ParamDict = Dict[str, Any]
 OptimDict = Dict[str, Tuple[Any, ParamDict]]
-ResultDict = Dict[str, float]
-Result = Dict[str, Sequence[float]]
+ResultDict = Dict[str, Any]
+Result = Dict[str, Sequence[Any]]
 
 SEP = '_'
 
@@ -31,22 +31,30 @@ class LossNaError(Exception):
 
 class BaseExperiment(ABC, metaclass=ABCMeta):
     def __init__(self, batch_size: int, max_epoch: int, dataset_name: str, kw_dataset=None, kw_loader=None,
-                 model_name='model', kw_model=None, kw_optimizer=None, data_dir='./dataset/data/') -> None:
+                 model_name='model', kw_model=None, kw_optimizer=None, data_dir='./dataset/data/',
+                 result_dir='./result', device=None) -> None:
         r"""Base class for all experiments.
 
         """
         self.dataset_name = dataset_name
         self.batch_size = batch_size
         self.max_epoch = max_epoch
-        self.data_dir = data_dir
-        self.device = select_device()
+        self.data_dir = os.path.join(data_dir, dataset_name)
+        os.makedirs(self.data_dir, exist_ok=True)
+
         _kw_dataset = kw_dataset if kw_dataset else dict()
         self.train_data = self.prepare_data(train=True, **_kw_dataset)
         self.test_data = self.prepare_data(train=False, **_kw_dataset)
         self.kw_loader = kw_loader if kw_loader else dict()
+
         self.model_name = model_name
         self.kw_model = kw_model if kw_model else dict()
         self.kw_optimizer = kw_optimizer if kw_optimizer else dict()
+
+        self.device = device if device else select_device()
+
+        self.result_dir = os.path.join(result_dir, dataset_name, model_name)
+        os.makedirs(self.result_dir, exist_ok=True)
 
     def __call__(self, *args, **kwargs) -> None:
         self.execute(*args, **kwargs)
@@ -60,7 +68,8 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader) -> Tuple[Module, ResultDict]:
+    def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader,
+                    **kwargs) -> Tuple[Module, ResultDict]:
         raise NotImplementedError
 
     @abstractmethod
@@ -73,30 +82,28 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
         for epoch in tqdm(range(self.max_epoch)):
             start = time()
             try:
-                net, train_result = self.epoch_train(net, optimizer=optimizer, train_loader=train_loader)
+                net, train_result = self.epoch_train(net, optimizer=optimizer, train_loader=train_loader, epoch=epoch)
             except LossNaError as e:
                 print(e)
                 break
-            validate_result = self.epoch_validate(net, test_loader=test_loader)
+            validate_result = self.epoch_validate(net, test_loader=test_loader, epoch=epoch)
             result = arrange_result_as_dict(t=time() - start, train=train_result, validate=validate_result)
             results.append(result)
             if epoch % 10 == 0:
                 notify(str(result))
         return net, concat_dicts(results)
 
-    def execute(self, optimizers: OptimDict, result_dir='./result', seed=0) -> None:
-        model_dir = os.path.join(result_dir, self.dataset_name, self.model_name)
-        os.makedirs(model_dir, exist_ok=True)
+    def execute(self, optimizers: OptimDict, seed=0) -> None:
         train_loader = DataLoader(self.train_data,  batch_size=self.batch_size, shuffle=True,
                                   worker_init_fn=worker_init_fn, **self.kw_loader)
         test_loader = DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False,
                                  worker_init_fn=worker_init_fn, **self.kw_loader)
         period = len(train_loader)
-        print(period) # debug
+        print(period)  # debug
         for name, (optimizer_cls, kw_optimizer) in optimizers.items():
-            path = os.path.join(model_dir, result_format(name))
+            path = os.path.join(self.result_dir, result_format(name))
 
-            if exist_result(name, model_dir):
+            if exist_result(name, self.result_dir):
                 notify(f'{name} already exists.')
                 continue
             else:
@@ -113,10 +120,11 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
                           path=path)
 
             # Expect error between Stochastic CG and Deterministic CG
-            if type(optimizer) in (CoBA, CoBA2):
+            """if type(optimizer) in (CoBA, CoBA2):
                 s = '\n'.join([str(e) for e in optimizer.scg_expect_errors])
                 with open(os.path.join(model_dir, f'scg_expect_errors_{name}.csv'), 'w') as f:
                     f.write(s)
+            """
 
 
 def select_device() -> str:
