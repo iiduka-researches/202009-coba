@@ -82,17 +82,18 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
         for epoch in tqdm(range(self.max_epoch)):
             start = time()
             try:
-                net, train_result = self.epoch_train(net, optimizer=optimizer, train_loader=train_loader, epoch=epoch)
+                net, train_result = self.epoch_train(net, optimizer=optimizer, train_loader=train_loader)
             except LossNaError as e:
                 print(e)
                 break
-            validate_result = self.epoch_validate(net, test_loader=test_loader, epoch=epoch)
+            validate_result = self.epoch_validate(net, test_loader=test_loader)
             result = arrange_result_as_dict(t=time() - start, train=train_result, validate=validate_result)
             results.append(result)
             if epoch % 10 == 0:
                 notify(str(result))
         return net, concat_dicts(results)
 
+    @notify_error
     def execute(self, optimizers: OptimDict, seed=0) -> None:
         train_loader = DataLoader(self.train_data,  batch_size=self.batch_size, shuffle=True,
                                   worker_init_fn=worker_init_fn, **self.kw_loader)

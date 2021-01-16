@@ -37,7 +37,8 @@ class ExperimentCIFAR10(BaseExperiment):
         else:
             raise ValueError(f'Invalid model name: {model_name}')
 
-    def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader) -> Tuple[Module, ResultDict]:
+    def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader,
+                    **kwargs) -> Tuple[Module, ResultDict]:
         running_loss = 0.0
         i = 0
         total = 0
