@@ -25,8 +25,8 @@ MODEL_DICT = dict(
 
 
 class ExperimentCIFAR10(BaseExperiment):
-    def __init__(self, **kwargs) -> None:
-        super(ExperimentCIFAR10, self).__init__(dataset_name='cifar10', **kwargs)
+    def __init__(self, dataset_name='cifar10', **kwargs) -> None:
+        super(ExperimentCIFAR10, self).__init__(dataset_name=dataset_name, **kwargs)
 
     def prepare_data(self, train: bool, **kwargs) -> Dataset:
         return CIFAR10(root=self.data_dir, train=train, download=True, transform=ToTensor(), **kwargs)

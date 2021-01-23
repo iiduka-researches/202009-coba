@@ -102,15 +102,19 @@ class Linear(nn.Module):
         if n_hidden == 1:
             self.linear = nn.Sequential(
                 nn.Linear(in_dim, 100),
+                nn.ReLU(inplace=True),
+                nn.Dropout(0.5),
                 nn.Linear(100, out_dim),
-                nn.ReLU(),
             )
         elif n_hidden == 2:
             self.linear = nn.Sequential(
                 nn.Linear(in_dim, 1024),
+                nn.ReLU(inplace=True),
+                nn.Dropout(0.5),
                 nn.Linear(1024, 512),
+                nn.ReLU(inplace=True),
+                nn.Dropout(0.5),
                 nn.Linear(512, out_dim),
-                nn.ReLU(),
             )
         else:
             raise ValueError(f'n_hidden should be 1 or 2, but n_hidden = {n_hidden}.')
