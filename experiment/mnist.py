@@ -1,11 +1,10 @@
-import os
 from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
 from torch.nn import Module
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader, Dataset
+from torch.utils import data
 from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 
@@ -15,15 +14,19 @@ from optimizer.base_optimizer import Optimizer
 
 class ExperimentMNIST(BaseExperiment):
     def __init__(self, **kwargs) -> None:
-        super(ExperimentMNIST, self).__init__(dataset_name='mnist', **kwargs)
+        super(ExperimentMNIST, self).__init__(dataset_name='MNIST', **kwargs)
 
-    def prepare_data(self, train: bool, **kwargs) -> Dataset:
+    def prepare_data(self, train: bool, **kwargs) -> data.Dataset:
         return MNIST(root=self.data_dir, train=train, download=True, transform=ToTensor(), **kwargs)
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
-        return CNN()
+        if model_name == 'Perceptron1':
+            return Linear(n_hidden=1, **kwargs)
+        else:
+            return Linear(n_hidden=2, **kwargs)
 
-    def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader) -> Tuple[Module, ResultDict]:
+    def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: data.DataLoader,
+                    **kwargs) -> Tuple[Module, ResultDict]:
         running_loss = 0.0
         i = 0
         total = 0
@@ -45,8 +48,7 @@ class ExperimentMNIST(BaseExperiment):
 
         return net, dict(train_loss=running_loss / i, train_accuracy=correct / total)
 
-
-    def epoch_validate(self, net: Module, test_loader: DataLoader, **kwargs) -> ResultDict:
+    def epoch_validate(self, net: Module, test_loader: data.DataLoader, **kwargs) -> ResultDict:
         running_loss = 0.0
         i = 0
         total = 0
@@ -67,7 +69,7 @@ class ExperimentMNIST(BaseExperiment):
 
 
 class CNN(nn.Module):
-    def __init__(self):
+    def __init__(self, **kwargs):
         super(CNN, self).__init__()
         self.conv_net = nn.Sequential(
             nn.Conv2d(1, 32, 5),
@@ -92,3 +94,28 @@ class CNN(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.mlp(out)
         return out
+
+
+class Linear(nn.Module):
+    def __init__(self,  in_dim=784, n_hidden=2, out_dim=10) -> None:
+        super(Linear, self).__init__()
+        if n_hidden == 1:
+            self.linear = nn.Sequential(
+                nn.Linear(in_dim, 100),
+                nn.Linear(100, out_dim),
+                nn.ReLU(),
+            )
+        elif n_hidden == 2:
+            self.linear = nn.Sequential(
+                nn.Linear(in_dim, 1024),
+                nn.Linear(1024, 512),
+                nn.Linear(512, out_dim),
+                nn.ReLU(),
+            )
+        else:
+            raise ValueError(f'n_hidden should be 1 or 2, but n_hidden = {n_hidden}.')
+
+    def forward(self, x: torch.Tensor):
+        _, c, h, w = x.shape
+        m = x.reshape(-1, c * h * w)
+        return self.linear(m)

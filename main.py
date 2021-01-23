@@ -1,6 +1,6 @@
 from typing import Any, Dict, Tuple, Union
-from warnings import simplefilter
-simplefilter('error')
+# from warnings import simplefilter
+# simplefilter('error')
 
 from torch.optim.sgd import SGD
 from torch.optim.adagrad import Adagrad
@@ -48,15 +48,15 @@ def avazu(max_epoch=10, lr=1e-4, batch_size=1024, num_workers=0, **kwargs) -> No
     e.execute(optimizers)
 
 
-def imdb(**kwargs) -> None:
-    optimizers = prepare_optimizers(lr=1e-3)
-    e = ExperimentIMDb(dataset_name='imdb', max_epoch=100, batch_size=32, **kwargs)
+def imdb(lr=1e-3, max_epoch=100, batch_size=32, **kwargs) -> None:
+    optimizers = prepare_optimizers(lr=lr)
+    e = ExperimentIMDb(max_epoch=max_epoch, batch_size=batch_size, **kwargs)
     e.execute(optimizers)
 
 
-def mnist(**kwargs) -> None:
-    optimizers = prepare_optimizers(lr=1e-3)
-    e = ExperimentMNIST(max_epoch=10, batch_size=32, **kwargs)
+def mnist(lr=1e-3, max_epoch=100, batch_size=32, **kwargs) -> None:
+    optimizers = prepare_optimizers(lr=lr)
+    e = ExperimentMNIST(max_epoch=max_epoch, batch_size=batch_size, **kwargs)
     e.execute(optimizers)
 
 
@@ -75,7 +75,7 @@ def coco(max_epoch=100, lr=1e-3, batch_size=16, **kwargs) -> None:
 
 def stl10(lr=1e-3) -> None:
     optimizers = prepare_optimizers(lr=lr)
-    e = ExperimentSTL10(dataset_name='stl10', model_name='Inception3')
+    e = ExperimentSTL10(model_name='Inception3')
     e(optimizers)
 
 
@@ -98,8 +98,8 @@ if __name__ == '__main__':
         Avazu=avazu,
         IMDb=imdb,
         CIFAR10=cifar10,
+        MNIST=mnist,
         # STL10=stl10,
         COCO=coco,
     )
-
     d[experiment](**kw)
