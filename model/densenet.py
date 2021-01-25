@@ -184,15 +184,13 @@ class DenseNet(nn.Module):
         return out
 
 
-def densenet_bc(k=24, num_classes=10, **kwargs) -> DenseNet:
+def densenet_bc(k=24, num_classes=10, bn_size=4, drop_rate=.2, **kwargs) -> DenseNet:
     kw = dict(
         growth_rate=k,
         block_config=(k, k, k),
-        bn_size=4,
-        drop_rate=.2,
+        bn_size=bn_size,
+        drop_rate=drop_rate,
         num_classes=num_classes,
         memory_efficient=True,
     )
     return DenseNet(**kw, **kwargs)
-
-

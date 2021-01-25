@@ -25,7 +25,7 @@ MODEL_DICT = dict(
 
 
 class ExperimentCIFAR10(BaseExperiment):
-    def __init__(self, dataset_name='cifar10', **kwargs) -> None:
+    def __init__(self, dataset_name='CIFAR10', **kwargs) -> None:
         super(ExperimentCIFAR10, self).__init__(dataset_name=dataset_name, **kwargs)
 
     def prepare_data(self, train: bool, **kwargs) -> Dataset:
