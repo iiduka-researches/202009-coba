@@ -26,9 +26,9 @@ def prepare_optimizers(lr: float, **kwargs) -> OptimizerDict:
     types = ('HS', 'FR', 'PRP', 'DY', 'HZ')
     kw_const = dict(a=1, m=1)
     # m_dict = dict(m2=1e-2, m3=1e-3, m4=1e-4)
-    m_dict = dict(m3=1e-3)
+    m_dict = dict(m0=1)
     # a_dict = dict(a4=1+1e-4, a5=1+1e-5, a6=1+1e-6, a7=1+1e-7)
-    a_dict = dict(a6=1+1e-6)
+    a_dict = dict(a8=1+1e-8)
     return dict(
         AMSGrad_Existing=(Adam, dict(lr=lr, amsgrad=True, **kwargs)),
         Adam_Existing=(Adam, dict(lr=lr, amsgrad=False, **kwargs)),
@@ -55,13 +55,13 @@ def imdb(lr=1e-3, max_epoch=100, batch_size=32, **kwargs) -> None:
     e.execute(optimizers)
 
 
-def mnist(lr=1e-3, max_epoch=100, batch_size=64, model_name='Perceptron2', **kwargs) -> None:
+def mnist(lr=1e-3, max_epoch=100, batch_size=32, model_name='Perceptron2', **kwargs) -> None:
     optimizers = prepare_optimizers(lr=lr)
     e = ExperimentMNIST(max_epoch=max_epoch, batch_size=batch_size, model_name=model_name, **kwargs)
     e.execute(optimizers)
 
 
-def cifar10(max_epoch=200, lr=1e-3, weight_decay=1e-4, batch_size=128, num_workers=0, model_name='DenseNetBC24',
+def cifar10(max_epoch=200, lr=1e-3, weight_decay=1e-4, batch_size=128, model_name='DenseNetBC24', num_workers=0,
             **kwargs) -> None:
     optimizers = prepare_optimizers(lr=lr, weight_decay=weight_decay)
     e = ExperimentCIFAR10(max_epoch=max_epoch, batch_size=batch_size, model_name=model_name,
@@ -75,15 +75,15 @@ def coco(max_epoch=100, lr=1e-3, batch_size=16, **kwargs) -> None:
     e(optimizers)
 
 
-def stl10(lr=1e-3) -> None:
+def stl10(lr=1e-3, **kwargs) -> None:
     optimizers = prepare_optimizers(lr=lr)
-    e = ExperimentSTL10(model_name='Inception3')
+    e = ExperimentSTL10(model_name='Inception3', **kwargs)
     e(optimizers)
 
 
-def svhn(lr=1e-3, max_epoch=50, batch_size=64, weight_decay=1e-4, model_name='DenseNetBC24') -> None:
+def svhn(lr=1e-3, max_epoch=50, batch_size=128, weight_decay=1e-4, model_name='DenseNetBC24', **kwargs) -> None:
     optimizers = prepare_optimizers(lr=lr, weight_decay=weight_decay)
-    e = ExperimentSVHN(max_epoch=max_epoch, batch_size=batch_size, model_name=model_name)
+    e = ExperimentSVHN(max_epoch=max_epoch, batch_size=batch_size, model_name=model_name, **kwargs)
     e(optimizers)
 
 

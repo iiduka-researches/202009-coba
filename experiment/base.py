@@ -77,7 +77,7 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
         raise NotImplementedError
 
     def train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader,
-              test_loader: DataLoader) -> Tuple[Module, Result]:
+              test_loader: DataLoader, checkpoint_dir: str) -> Tuple[Module, Result]:
         results = []
         for epoch in tqdm(range(self.max_epoch)):
             start = time()
@@ -94,7 +94,7 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
         return net, concat_dicts(results)
 
     @notify_error
-    def execute(self, optimizers: OptimDict, seed=0) -> None:
+    def execute(self, optimizers: OptimDict, seed=0, checkpoint_dict: Dict[str, str] = None) -> None:
         train_loader = DataLoader(self.train_data,  batch_size=self.batch_size, shuffle=True,
                                   worker_init_fn=worker_init_fn, **self.kw_loader)
         test_loader = DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False,
@@ -103,6 +103,8 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
         print(period)  # debug
         for name, (optimizer_cls, kw_optimizer) in optimizers.items():
             path = os.path.join(self.result_dir, result_format(name))
+            checkpoint_dir = os.path.join(self.result_dir, f'checkpoint/{name}')
+            os.makedirs(checkpoint_dir, exist_ok=True)
 
             if exist_result(name, self.result_dir):
                 notify(f'{name} already exists.')
@@ -111,14 +113,29 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
                 notify(f'{name}')
 
             fix_seed(seed)
+
             if 'CoBA' in name:
                 kw_optimizer['period'] = period
+
             net = self.prepare_model(self.model_name, **self.kw_model)
             net.to(self.device)
+
             optimizer = optimizer_cls(net.parameters(), **kw_optimizer, **self.kw_optimizer)
-            _, result = self.train(net=net, optimizer=optimizer, train_loader=train_loader, test_loader=test_loader)
-            result_to_csv(result, name=name, kw_optimizer=optimizer.__dict__.get('defaults', kw_optimizer),
-                          path=path)
+
+            # load model in case that specify checkpoint
+            if checkpoint_dict and checkpoint_dict.get(name):
+                model_path = os.path.join(checkpoint_dir, f'model_{checkpoint_dict[name]}')
+                net = net.load_state_dict(torch.load(model_path))
+                optimizer_path = os.path.join(checkpoint_dir, f'optimizer_{checkpoint_dict[name]}')
+                optimizer.load_state_dict(torch.load(optimizer_path))
+
+            net, result = self.train(net=net, optimizer=optimizer, train_loader=train_loader, test_loader=test_loader,
+                                     checkpoint_dir=checkpoint_dir)
+
+            result_to_csv(result, name=name, kw_optimizer=optimizer.state_dict(), path=path)
+
+            torch.save(net.state_dict(), os.path.join(checkpoint_dir, f'model_{self.max_epoch}'))
+            torch.save(optimizer.state_dict(), os.path.join(checkpoint_dir, f'optimizer_{self.max_epoch}'))
 
             # Expect error between Stochastic CG and Deterministic CG
             """if type(optimizer) in (CoBA, CoBA2):
@@ -126,6 +143,7 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
                 with open(os.path.join(model_dir, f'scg_expect_errors_{name}.csv'), 'w') as f:
                     f.write(s)
             """
+            notify(f'finish: {name}.')
 
 
 def select_device() -> str:

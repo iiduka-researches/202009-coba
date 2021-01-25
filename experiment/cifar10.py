@@ -1,5 +1,4 @@
-import os
-from typing import Optional, Tuple
+from typing import *
 
 import torch
 from torch.nn import Module
@@ -14,7 +13,7 @@ from model.resnet import resnet20, resnet32, resnet44, resnet56, resnet110
 from optimizer.base_optimizer import Optimizer
 
 
-MODEL_DICT = dict(
+MODEL_DICT: Dict[str, Callable] = dict(
     ResNet20=resnet20,
     ResNet32=resnet32,
     ResNet44=resnet44,
@@ -32,7 +31,7 @@ class ExperimentCIFAR10(BaseExperiment):
         return CIFAR10(root=self.data_dir, train=train, download=True, transform=ToTensor(), **kwargs)
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
-        if model_name in MODEL_DICT:
+        if model_name and model_name in MODEL_DICT:
             return MODEL_DICT[model_name](**kwargs)
         else:
             raise ValueError(f'Invalid model name: {model_name}')

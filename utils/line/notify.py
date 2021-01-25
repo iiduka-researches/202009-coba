@@ -29,6 +29,5 @@ def notify_error(func: Callable) -> Callable:
         except Exception:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             notify(''.join((format_exception(exc_type, exc_value, exc_traceback))))
-
             raise Exception
     return wrapper

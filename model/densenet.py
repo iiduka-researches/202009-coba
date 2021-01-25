@@ -127,7 +127,7 @@ class DenseNet(nn.Module):
     """
 
     def __init__(self, num_classes: int, growth_rate: int = 24, block_config: Tuple[int, int, int] = (32, 16, 8),
-                 num_init_features: int = 16, bn_size: int = 4, drop_rate: float = 0,
+                 num_init_features: int = 16, bn_size: int = 4, drop_rate: float = 0.,
                  memory_efficient: bool = True) -> None:
 
         super(DenseNet, self).__init__()
@@ -193,4 +193,4 @@ def densenet_bc(k=24, num_classes=10, bn_size=4, drop_rate=.2, **kwargs) -> Dens
         num_classes=num_classes,
         memory_efficient=True,
     )
-    return DenseNet(**kw, **kwargs)
+    return DenseNet(**kw)
