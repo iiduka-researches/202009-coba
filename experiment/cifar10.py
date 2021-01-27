@@ -3,6 +3,7 @@ from typing import *
 import torch
 from torch.nn import Module
 from torch.nn import CrossEntropyLoss
+from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import ToTensor
@@ -10,7 +11,6 @@ from torchvision.transforms import ToTensor
 from experiment.base import BaseExperiment, LossNaError, ResultDict
 from model.densenet import densenet_bc
 from model.resnet import resnet20, resnet32, resnet44, resnet56, resnet110
-from optimizer.base_optimizer import Optimizer
 
 
 MODEL_DICT: Dict[str, Callable] = dict(

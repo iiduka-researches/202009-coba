@@ -1,5 +1,6 @@
 from abc import ABC, ABCMeta, abstractmethod
 from datetime import datetime
+import json
 import os
 import random
 from time import time
@@ -9,10 +10,10 @@ import numpy as np
 from pandas import DataFrame
 import torch
 from torch.nn import Module
-from torch.utils.data import DataLoader, Dataset
+from torch.optim.optimizer import Optimizer
+from torch.utils import data
 from tqdm import tqdm
 
-from optimizer.base_optimizer import Optimizer
 from optimizer.conjugate.coba import CoBA
 from optimizer.conjugate.coba2 import CoBA2
 from utils.line.notify import notify, notify_error
@@ -31,8 +32,8 @@ class LossNaError(Exception):
 
 class BaseExperiment(ABC, metaclass=ABCMeta):
     def __init__(self, batch_size: int, max_epoch: int, dataset_name: str, kw_dataset=None, kw_loader=None,
-                 model_name='model', kw_model=None, kw_optimizer=None, data_dir='./dataset/data/',
-                 result_dir='./result', device=None) -> None:
+                 model_name='model', kw_model=None, kw_optimizer=None, scheduler = None, kw_scheduler=None,
+                 data_dir='./dataset/data/', result_dir='./result', device=None) -> None:
         r"""Base class for all experiments.
 
         """
@@ -50,6 +51,8 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
         self.model_name = model_name
         self.kw_model = kw_model if kw_model else dict()
         self.kw_optimizer = kw_optimizer if kw_optimizer else dict()
+        self.scheduler = scheduler
+        self.kw_scheduler = kw_scheduler if kw_scheduler else dict()
 
         self.device = device if device else select_device()
 
@@ -60,7 +63,7 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
         self.execute(*args, **kwargs)
 
     @abstractmethod
-    def prepare_data(self, train: bool, **kwargs) -> Dataset:
+    def prepare_data(self, train: bool, **kwargs) -> data.Dataset:
         raise NotImplementedError
 
     @abstractmethod
@@ -68,16 +71,21 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader,
+    def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: data.DataLoader,
                     **kwargs) -> Tuple[Module, ResultDict]:
         raise NotImplementedError
 
     @abstractmethod
-    def epoch_validate(self, net: Module, test_loader: DataLoader, **kwargs) -> ResultDict:
+    def epoch_validate(self, net: Module, test_loader: data.DataLoader, **kwargs) -> ResultDict:
         raise NotImplementedError
 
-    def train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader,
-              test_loader: DataLoader, checkpoint_dir: str) -> Tuple[Module, Result]:
+    def train(self, net: Module, optimizer: Optimizer, train_loader: data.DataLoader,
+              test_loader: data.DataLoader) -> Tuple[Module, Result]:
+        if self.scheduler:
+            scheduler = self.scheduler(optimizer, **self.kw_scheduler)
+        else:
+            scheduler = None
+
         results = []
         for epoch in tqdm(range(self.max_epoch)):
             start = time()
@@ -91,16 +99,24 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
             results.append(result)
             if epoch % 10 == 0:
                 notify(str(result))
+            if scheduler:
+                if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    scheduler.step(train_result['train_loss'])
+                else:
+                    scheduler.step()
         return net, concat_dicts(results)
 
     @notify_error
     def execute(self, optimizers: OptimDict, seed=0, checkpoint_dict: Dict[str, str] = None) -> None:
-        train_loader = DataLoader(self.train_data,  batch_size=self.batch_size, shuffle=True,
-                                  worker_init_fn=worker_init_fn, **self.kw_loader)
-        test_loader = DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False,
-                                 worker_init_fn=worker_init_fn, **self.kw_loader)
+        train_loader = data.DataLoader(self.train_data,  batch_size=self.batch_size, shuffle=True,
+                                       worker_init_fn=worker_init_fn, **self.kw_loader)
+        test_loader = data.DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False,
+                                      worker_init_fn=worker_init_fn, **self.kw_loader)
         period = len(train_loader)
         print(period)  # debug
+        with open(os.path.join(self.result_dir, 'args.json'), 'w') as fp:
+            json.dump({k: str(v) for k, v in dict(**self.__dict__).items()}, fp)
+
         for name, (optimizer_cls, kw_optimizer) in optimizers.items():
             path = os.path.join(self.result_dir, result_format(name))
             checkpoint_dir = os.path.join(self.result_dir, f'checkpoint/{name}')
@@ -129,20 +145,17 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
                 optimizer_path = os.path.join(checkpoint_dir, f'optimizer_{checkpoint_dict[name]}')
                 optimizer.load_state_dict(torch.load(optimizer_path))
 
-            net, result = self.train(net=net, optimizer=optimizer, train_loader=train_loader, test_loader=test_loader,
-                                     checkpoint_dir=checkpoint_dir)
-
+            net, result = self.train(net=net, optimizer=optimizer, train_loader=train_loader, test_loader=test_loader)
             result_to_csv(result, name=name, kw_optimizer=optimizer.state_dict(), path=path)
 
             torch.save(net.state_dict(), os.path.join(checkpoint_dir, f'model_{self.max_epoch}'))
             torch.save(optimizer.state_dict(), os.path.join(checkpoint_dir, f'optimizer_{self.max_epoch}'))
 
             # Expect error between Stochastic CG and Deterministic CG
-            """if type(optimizer) in (CoBA, CoBA2):
+            if type(optimizer) in (CoBA, CoBA2):
                 s = '\n'.join([str(e) for e in optimizer.scg_expect_errors])
-                with open(os.path.join(model_dir, f'scg_expect_errors_{name}.csv'), 'w') as f:
+                with open(os.path.join(self.result_dir, f'scg_expect_errors_{name}.csv'), 'w') as f:
                     f.write(s)
-            """
             notify(f'finish: {name}.')
 
 

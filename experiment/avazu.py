@@ -5,17 +5,17 @@ from sklearn.metrics import roc_auc_score
 import torch
 from torch import sigmoid
 from torch.nn import BCEWithLogitsLoss, Embedding, Linear, Module
+from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from optimizer.base_optimizer import Optimizer
 from .base import BaseExperiment, ResultDict
 from dataset.avazu import AvazuDataset
 
 
 class ExperimentAvazu(BaseExperiment):
-    def __init__(self, embedding_dim=10, model_name='logistic_regression', weight_decay=1e-4, **kwargs) -> None:
-        super(ExperimentAvazu, self).__init__(dataset_name='avazu', model_name=model_name,
+    def __init__(self, embedding_dim=20, model_name='LogisticRegression', weight_decay=1e-4, **kwargs) -> None:
+        super(ExperimentAvazu, self).__init__(dataset_name='Avazu', model_name=model_name,
                                               kw_optimizer=dict(weight_decay=weight_decay), **kwargs)
         self.embedding_dim = embedding_dim
 
@@ -53,12 +53,13 @@ class ExperimentAvazu(BaseExperiment):
 
             label_list.append(labels.detach().cpu().numpy().flatten())
             prob_list.append(sigmoid(outputs).detach().cpu().numpy().flatten())
-
             i += 1
 
         y_true = np.hstack(label_list)
         y_pred = np.hstack(prob_list)
         auc = roc_auc_score(y_true, y_pred)
+        from utils.line.notify import notify
+        notify(f'Acc:\t{correct / total}\nAUC:\t{auc}.')
         return net, dict(train_loss=running_loss / i, train_accuracy=correct / total, train_auc=auc)
 
     def epoch_validate(self, net: Module, test_loader: DataLoader, **kwargs) -> ResultDict:
@@ -104,5 +105,5 @@ class LinearRegression(Module):
 
 
 _MODEL_DICT = dict(
-    logistic_regression=LinearRegression
+    LogisticRegression=LinearRegression
 )

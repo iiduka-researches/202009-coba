@@ -3,7 +3,7 @@ from typing import List
 
 import torch
 
-from optimizer.base_optimizer import Optimizer
+from torch.optim.optimizer import Optimizer
 from optimizer.conjugate.conjugate_param2 import get_cg_param_fn
 
 

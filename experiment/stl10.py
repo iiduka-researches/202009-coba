@@ -7,8 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import STL10
 from torchvision.models import inception_v3
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
-from optimizer.base_optimizer import Optimizer
-from .base import BaseExperiment, ResultDict
+from .base import BaseExperiment, Optimizer, ResultDict
 
 
 class ExperimentSTL10(BaseExperiment):

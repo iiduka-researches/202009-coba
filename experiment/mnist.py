@@ -8,8 +8,7 @@ from torch.utils import data
 from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 
-from experiment.base import BaseExperiment, ResultDict
-from optimizer.base_optimizer import Optimizer
+from experiment.base import BaseExperiment, Optimizer, ResultDict
 
 
 class ExperimentMNIST(BaseExperiment):

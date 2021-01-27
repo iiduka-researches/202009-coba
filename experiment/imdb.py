@@ -3,11 +3,11 @@ from typing import Tuple, Optional
 
 import torch
 from torch.nn import Embedding, Linear, LSTM, Module, BCEWithLogitsLoss
+from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader, Dataset
 from torchtext.data import BucketIterator, Field, LabelField
 from torchtext.datasets import IMDB
 
-from optimizer.base_optimizer import Optimizer
 from .base import BaseExperiment, ResultDict
 
 

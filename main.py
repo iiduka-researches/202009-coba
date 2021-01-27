@@ -1,7 +1,8 @@
-from typing import Any, Dict, Tuple, Union
+from typing import *
 # from warnings import simplefilter
 # simplefilter('error')
 
+from torch.optim.lr_scheduler import *
 from torch.optim.sgd import SGD
 from torch.optim.adagrad import Adagrad
 from torch.optim.rmsprop import RMSprop
@@ -32,20 +33,35 @@ def prepare_optimizers(lr: float, **kwargs) -> OptimizerDict:
     return dict(
         AMSGrad_Existing=(Adam, dict(lr=lr, amsgrad=True, **kwargs)),
         Adam_Existing=(Adam, dict(lr=lr, amsgrad=False, **kwargs)),
-        Momentum_Existing=(SGD, dict(lr=lr, momentum=.9, **kwargs)),
-        AdaGrad_Existing=(Adagrad, dict(lr=lr, **kwargs)),
-        RMSProp_Existing=(RMSprop, dict(lr=lr, **kwargs)),
         **{f'CoBAMSGrad_{t}_{sm}_{sa}': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t, m=m, a=a, **kwargs))
            for t in types for sm, m in m_dict.items() for sa, a in a_dict.items()},
         # **{f'CoBAMSGrad2_{t}': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t)) for t in types},
         # **{f'CoBAMSGrad_{t}(const)': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
         # **{f'CoBAMSGrad2_{t}(const)': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
+        Momentum_Existing=(SGD, dict(lr=lr, momentum=.9, **kwargs)),
+        AdaGrad_Existing=(Adagrad, dict(lr=lr, **kwargs)),
+        RMSProp_Existing=(RMSprop, dict(lr=lr, **kwargs)),
     )
 
 
-def avazu(max_epoch=10, lr=1e-4, batch_size=1024, num_workers=0, **kwargs) -> None:
+def lr_lambda(epoch: int, max_epoch: int, lr: float, c: float = 1e-2):
+    p = epoch / max_epoch
+    if p < .1:
+        return (10 * (1 - c) * p + c) * lr
+    elif p < .5:
+        return lr
+    elif p < .75:
+        return lr * 1e-1
+    else:
+        return lr * 1e-2
+
+
+def avazu(max_epoch=30, lr=1e-2, batch_size=4096, num_workers=0, use_scheduler=False, **kwargs) -> None:
     optimizers = prepare_optimizers(lr=lr)
-    e = ExperimentAvazu(max_epoch=max_epoch, batch_size=batch_size, kw_loader=dict(num_workers=num_workers), **kwargs)
+    scheduler = LambdaLR if use_scheduler else None
+    kw_scheduler = dict(lr_lambda=lambda epoch: lr_lambda(epoch, max_epoch, lr))
+    e = ExperimentAvazu(max_epoch=max_epoch, batch_size=batch_size, kw_loader=dict(num_workers=num_workers), 
+                        scheduler=scheduler, kw_scheduler=kw_scheduler, **kwargs)
     e.execute(optimizers)
 
 
@@ -55,17 +71,22 @@ def imdb(lr=1e-3, max_epoch=100, batch_size=32, **kwargs) -> None:
     e.execute(optimizers)
 
 
-def mnist(lr=1e-3, max_epoch=100, batch_size=32, model_name='Perceptron2', **kwargs) -> None:
+def mnist(lr=1e-3, max_epoch=100, batch_size=32, model_name='Perceptron2', use_scheduler=False, **kwargs) -> None:
     optimizers = prepare_optimizers(lr=lr)
-    e = ExperimentMNIST(max_epoch=max_epoch, batch_size=batch_size, model_name=model_name, **kwargs)
+    scheduler = ReduceLROnPlateau if use_scheduler else None
+    e = ExperimentMNIST(max_epoch=max_epoch, batch_size=batch_size, model_name=model_name, scheduler=scheduler,
+                        **kwargs)
     e.execute(optimizers)
 
 
-def cifar10(max_epoch=200, lr=1e-3, weight_decay=1e-4, batch_size=128, model_name='DenseNetBC24', num_workers=0,
-            **kwargs) -> None:
+def cifar10(max_epoch=200, lr=1e-1, weight_decay=1e-4, batch_size=128, model_name='DenseNetBC24', num_workers=0,
+            use_scheduler=False, **kwargs) -> None:
+    scheduler = LambdaLR if use_scheduler else None
+    kw_scheduler = dict(lr_lambda=lambda epoch: lr_lambda(epoch, max_epoch, lr))
     optimizers = prepare_optimizers(lr=lr, weight_decay=weight_decay)
     e = ExperimentCIFAR10(max_epoch=max_epoch, batch_size=batch_size, model_name=model_name,
-                          kw_loader=dict(num_workers=num_workers), **kwargs)
+                          kw_loader=dict(num_workers=num_workers), scheduler=scheduler, kw_scheduler=kw_scheduler, 
+                          **kwargs)
     e(optimizers)
 
 
@@ -81,9 +102,13 @@ def stl10(lr=1e-3, **kwargs) -> None:
     e(optimizers)
 
 
-def svhn(lr=1e-3, max_epoch=50, batch_size=128, weight_decay=1e-4, model_name='DenseNetBC24', **kwargs) -> None:
+def svhn(lr=1e-3, max_epoch=50, batch_size=128, weight_decay=1e-4, model_name='DenseNetBC24', use_scheduler=False,
+         **kwargs) -> None:
+    scheduler = LambdaLR if use_scheduler else None
+    kw_scheduler = dict(lr_lambda=lambda epoch: lr_lambda(epoch, max_epoch, lr))
     optimizers = prepare_optimizers(lr=lr, weight_decay=weight_decay)
-    e = ExperimentSVHN(max_epoch=max_epoch, batch_size=batch_size, model_name=model_name, **kwargs)
+    e = ExperimentSVHN(max_epoch=max_epoch, batch_size=batch_size, model_name=model_name, scheduler=scheduler, 
+                       kw_scheduler=kw_scheduler,**kwargs)
     e(optimizers)
 
 
@@ -98,16 +123,18 @@ if __name__ == '__main__':
     p.add_argument('--lr', type=float)
     p.add_argument('--device')
     p.add_argument('-nw', '--num_workers', type=int)
+    p.add_argument('-us', '--use_scheduler', action='store_true')
     args = p.parse_args()
 
     experiment = args.experiment
     kw = {k: v for k, v in dict(**args.__dict__).items() if k != 'experiment' and v}
-    d = dict(
+
+    d: Dict[str, Callable] = dict(
         Avazu=avazu,
         IMDb=imdb,
         CIFAR10=cifar10,
         MNIST=mnist,
-        # STL10=stl10,
+        STL10=stl10,
         SVHN=svhn,
         COCO=coco,
     )
