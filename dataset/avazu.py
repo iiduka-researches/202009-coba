@@ -14,10 +14,12 @@ TRAIN_FILES = (
     'dataframe-2',
     'dataframe-3',
     'dataframe-4',
-    'dataframe-5',
-    'dataframe-6',
+    # 'dataframe-5',
+    # 'dataframe-6',
 )
 TEST_FILES = (
+    'dataframe-5',
+    'dataframe-6',
     'dataframe-7',
     'dataframe-8',
     'dataframe-9',

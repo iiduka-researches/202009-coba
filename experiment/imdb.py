@@ -12,8 +12,8 @@ from .base import BaseExperiment, ResultDict
 
 
 class ExperimentIMDb(BaseExperiment):
-    def __init__(self, **kwargs):
-        super(ExperimentIMDb, self).__init__(dataset_name='imdb', **kwargs)
+    def __init__(self, dataset_name='IMDb', **kwargs):
+        super(ExperimentIMDb, self).__init__(dataset_name=dataset_name, **kwargs)
 
         # DL the Dataset and split
         self.text = Field(sequential=True, fix_length=80, batch_first=True, lower=True)
@@ -26,10 +26,7 @@ class ExperimentIMDb(BaseExperiment):
         self.vocab_size = len(self.text.vocab)
 
     def prepare_data(self, train: bool, **kwargs) -> Dataset:
-        if train:
-            return self.train_data
-        else:
-            return self.test_data
+        pass
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
         return Net(**kwargs)

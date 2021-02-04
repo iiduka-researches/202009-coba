@@ -97,13 +97,15 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
             validate_result = self.epoch_validate(net, test_loader=test_loader)
             result = arrange_result_as_dict(t=time() - start, train=train_result, validate=validate_result)
             results.append(result)
-            if epoch % 10 == 0:
-                notify(str(result))
             if scheduler:
                 if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                     scheduler.step(train_result['train_loss'])
                 else:
                     scheduler.step()
+                notify(f'{scheduler.__dict__}')
+            if epoch % 10 == 0:
+                notify(f'{result}')
+
         return net, concat_dicts(results)
 
     @notify_error
@@ -126,17 +128,17 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
                 notify(f'{name} already exists.')
                 continue
             else:
-                notify(f'{name}')
+                fix_seed(seed)
 
-            fix_seed(seed)
+                if 'CoBA' in name:
+                    kw_optimizer['period'] = period
 
-            if 'CoBA' in name:
-                kw_optimizer['period'] = period
+                net = self.prepare_model(self.model_name, **self.kw_model)
+                net.to(self.device)
 
-            net = self.prepare_model(self.model_name, **self.kw_model)
-            net.to(self.device)
-
-            optimizer = optimizer_cls(net.parameters(), **kw_optimizer, **self.kw_optimizer)
+                optimizer = optimizer_cls(net.parameters(), **kw_optimizer, **self.kw_optimizer)
+                kw_optimizer_default = dict(**optimizer.__dict__)['defaults']
+                notify(f'{name} {kw_optimizer_default}')
 
             # load model in case that specify checkpoint
             if checkpoint_dict and checkpoint_dict.get(name):
@@ -146,16 +148,18 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
                 optimizer.load_state_dict(torch.load(optimizer_path))
 
             net, result = self.train(net=net, optimizer=optimizer, train_loader=train_loader, test_loader=test_loader)
-            result_to_csv(result, name=name, kw_optimizer=optimizer.state_dict(), path=path)
+            result_to_csv(result, name=name, kw_optimizer=kw_optimizer_default, path=path)
 
             # torch.save(net.state_dict(), os.path.join(checkpoint_dir, f'model_{self.max_epoch}'))
             # torch.save(optimizer.state_dict(), os.path.join(checkpoint_dir, f'optimizer_{self.max_epoch}'))
 
             # Expect error between Stochastic CG and Deterministic CG
+            """
             if type(optimizer) in (CoBA, CoBA2):
                 s = '\n'.join([str(e) for e in optimizer.scg_expect_errors])
                 with open(os.path.join(self.result_dir, f'scg_expect_errors_{name}.csv'), 'w') as f:
                     f.write(s)
+            """
             notify(f'finish: {name}.')
 
 

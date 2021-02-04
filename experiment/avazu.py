@@ -15,7 +15,7 @@ from dataset.avazu import AvazuDataset
 
 
 class ExperimentAvazu(BaseExperiment):
-    def __init__(self, embedding_dim=20, model_name='LogisticRegression', weight_decay=1e-4, **kwargs) -> None:
+    def __init__(self, embedding_dim=20, model_name='LogisticRegression', weight_decay=1e-6, **kwargs) -> None:
         super(ExperimentAvazu, self).__init__(dataset_name='Avazu', model_name=model_name,
                                               kw_optimizer=dict(weight_decay=weight_decay), **kwargs)
         self.embedding_dim = embedding_dim

@@ -29,7 +29,7 @@ class CoBA(Optimizer):
         defaults = dict(period=period, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad,
                         cg_type=cg_type, lam=lam, a=a, m=m)
         super(CoBA, self).__init__(params, defaults)
-        self.scg_expect_errors: List[float] = []
+        # self.scg_expect_errors: List[float] = []
 
     def __setstate__(self, state):
         super(CoBA, self).__setstate__(state)
@@ -72,8 +72,9 @@ class CoBA(Optimizer):
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state['max_exp_avg_sq'] = torch.zeros_like(p)
-                    state['deterministic_g'] = None
-                    state['deterministic_cg'] = None
+                    # state['deterministic_g'] = None
+                    # state['deterministic_cg'] = None
+                    state['stochastic_cg'] = None
                     state['past_grad'] = None
                     state['stochastic_g_accum'] = torch.zeros_like(p)
                     state['stochastic_cg_accum'] = torch.zeros_like(p)
@@ -91,7 +92,7 @@ class CoBA(Optimizer):
                     # Decay the first and second moment running average coefficient
                     grad = grad.add(p, alpha=group['weight_decay'])
 
-                if state['deterministic_cg'] is None:
+                if state['stochastic_cg'] is None:
                     state['past_grad'] = grad.clone()
                     state['stochastic_cg'] = (-grad).clone()
                 else:
@@ -100,6 +101,7 @@ class CoBA(Optimizer):
                     state['stochastic_cg'] = -grad + group['m'] * cg_param * scg / (state['step'] ** group['a'])
                     state['past_grad'] = grad.clone()
 
+                """
                 if state['step'] % group['period'] == 0:
                     # Expected value calculation for each epoch.
                     deterministic_g = state['stochastic_g_accum'] / group['period']
@@ -123,6 +125,7 @@ class CoBA(Optimizer):
                 else:
                     state['stochastic_g_accum'] += grad
                     state['stochastic_cg_accum'] += state['stochastic_cg']
+                """
 
                 exp_avg.mul_(beta1).add_(state['stochastic_cg'], alpha=1 - beta1)
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
@@ -141,7 +144,7 @@ class CoBA(Optimizer):
 
                 p.addcdiv_(exp_avg, denom, value=step_size)
 
-            if errors:
-                self.scg_expect_errors.append(sum(errors) / len(errors))
+            # if errors:
+            #     self.scg_expect_errors.append(sum(errors) / len(errors))
 
         return loss
