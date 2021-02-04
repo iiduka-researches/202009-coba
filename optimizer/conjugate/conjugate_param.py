@@ -13,7 +13,7 @@ def inner(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 def cg_param_hs(grad: torch.Tensor, g_buf: torch.Tensor, d_buf: torch.Tensor, group: Dict[str, Any]) -> torch.Tensor:
     y = grad - g_buf
     dy = inner(d_buf, y)
-    eps = torch.full_like(dy, group['eps'])
+    eps = group['eps'] # torch.full_like(dy, group['eps'])
     eps = torch.where(dy >= 0, eps, -eps)
     # dy[(dy >= 0) & (dy < group['eps'])] = group['eps']
     # dy[(dy < 0) & (dy > -group['eps'])] = -group['eps']
@@ -35,7 +35,7 @@ def cg_param_prp(grad: torch.Tensor, g_buf: torch.Tensor, d_buf: torch.Tensor, g
 def cg_param_dy(grad: torch.Tensor, g_buf: torch.Tensor, d_buf: torch.Tensor, group: Dict[str, Any]) -> torch.Tensor:
     y = grad - g_buf
     dy = inner(d_buf, y)
-    eps = torch.full_like(dy, group['eps'])
+    eps = group['eps']  # torch.full_like(dy, group['eps'])
     eps = torch.where(dy >= 0, eps, -eps)
     # dy[(dy >= 0) & (dy < group['eps'])] = group['eps']
     # dy[(dy < 0) & (dy > -group['eps'])] = -group['eps']
@@ -46,8 +46,8 @@ def cg_param_hz(grad: torch.Tensor, g_buf: torch.Tensor, d_buf: torch.Tensor,
                 group: Dict[str, Any]) -> torch.Tensor:
     y = grad - g_buf
     dy = inner(d_buf, y)
-    eps = torch.full_like(dy, group['eps'])
-    eps = torch.where(dy >= 0, eps, -eps)
+    eps = group['eps']  # torch.full_like(dy, group['eps'])
+    # eps = torch.where(dy >= 0, eps, -eps)
     cg_param = inner(grad, y) / dy.add(eps)
     # dy[(dy >= 0) & (dy < group['eps'])] = group['eps']
     # dy[(dy < 0) & (dy > -group['eps'])] = -group['eps']
@@ -55,7 +55,8 @@ def cg_param_hz(grad: torch.Tensor, g_buf: torch.Tensor, d_buf: torch.Tensor,
 
     cg_param.add_(inner(y, y) * inner(grad, d_buf) / (dy ** 2 + eps), alpha=-group['lam'])
     # cg_param.add_(inner(y, y) * inner(grad, d_buf) / dy ** 2, alpha=-group['lam'])
-    _eta = torch.min(inner(g_buf, g_buf), torch.full_like(cg_param, group['eps']))
+    # _eta = torch.min(inner(g_buf, g_buf), torch.full_like(cg_param, group['eps']))
+    _eta = torch.min(inner(g_buf, g_buf), eps)
     eta = -1 / (inner(d_buf, d_buf) * _eta)
     return torch.max(cg_param, eta)
 
