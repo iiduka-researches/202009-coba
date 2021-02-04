@@ -148,8 +148,8 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
             net, result = self.train(net=net, optimizer=optimizer, train_loader=train_loader, test_loader=test_loader)
             result_to_csv(result, name=name, kw_optimizer=optimizer.state_dict(), path=path)
 
-            torch.save(net.state_dict(), os.path.join(checkpoint_dir, f'model_{self.max_epoch}'))
-            torch.save(optimizer.state_dict(), os.path.join(checkpoint_dir, f'optimizer_{self.max_epoch}'))
+            # torch.save(net.state_dict(), os.path.join(checkpoint_dir, f'model_{self.max_epoch}'))
+            # torch.save(optimizer.state_dict(), os.path.join(checkpoint_dir, f'optimizer_{self.max_epoch}'))
 
             # Expect error between Stochastic CG and Deterministic CG
             if type(optimizer) in (CoBA, CoBA2):
