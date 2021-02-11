@@ -32,7 +32,7 @@ class LossNaError(Exception):
 
 class BaseExperiment(ABC, metaclass=ABCMeta):
     def __init__(self, batch_size: int, max_epoch: int, dataset_name: str, kw_dataset=None, kw_loader=None,
-                 model_name='model', kw_model=None, kw_optimizer=None, scheduler = None, kw_scheduler=None,
+                 model_name='model', kw_model=None, kw_optimizer=None, scheduler=None, kw_scheduler=None,
                  data_dir='./dataset/data/', result_dir='./result', device=None) -> None:
         r"""Base class for all experiments.
 
@@ -79,6 +79,13 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
     def epoch_validate(self, net: Module, test_loader: data.DataLoader, **kwargs) -> ResultDict:
         raise NotImplementedError
 
+    def prepare_loaders(self):
+        train_loader = data.DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True,
+                                       worker_init_fn=worker_init_fn, **self.kw_loader)
+        test_loader = data.DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False,
+                                      worker_init_fn=worker_init_fn, **self.kw_loader)
+        return train_loader, test_loader
+
     def train(self, net: Module, optimizer: Optimizer, train_loader: data.DataLoader,
               test_loader: data.DataLoader) -> Tuple[Module, Result]:
         if self.scheduler:
@@ -110,10 +117,7 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
 
     @notify_error
     def execute(self, optimizers: OptimDict, seed=0, checkpoint_dict: Dict[str, str] = None) -> None:
-        train_loader = data.DataLoader(self.train_data,  batch_size=self.batch_size, shuffle=True,
-                                       worker_init_fn=worker_init_fn, **self.kw_loader)
-        test_loader = data.DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False,
-                                      worker_init_fn=worker_init_fn, **self.kw_loader)
+        train_loader, test_loader = self.prepare_loaders()
         period = len(train_loader)
         print(period)  # debug
         with open(os.path.join(self.result_dir, 'args.json'), 'w') as fp:

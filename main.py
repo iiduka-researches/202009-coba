@@ -25,15 +25,46 @@ def prepare_optimizers(lr: float, optimizer: str = None, **kwargs) -> OptimizerD
     types = ('HS', 'FR', 'PRP', 'DY', 'HZ')
     kw_const = dict(a=1, m=1)
     # m_dict = dict(m2=1e-2, m3=1e-3, m4=1e-4)
-    m_dict = dict(m0=1)
+    m_dict = dict(m4=1e-4)
     # a_dict = dict(a4=1+1e-4, a5=1+1e-5, a6=1+1e-6, a7=1+1e-7)
-    a_dict = dict(a6=1+1e-6)
+    a_dict = dict(a5=1+1e-5)
     optimizers = dict(
         # AMSGrad_ExistingTorch=(optim.Adam, dict(lr=lr, amsgrad=True, **kwargs)),
         AMSGrad_Existing=(Adam, dict(lr=lr, amsgrad=True, **kwargs)),
         Adam_Existing=(Adam, dict(lr=lr, amsgrad=False, **kwargs)),
         **{f'CoBAMSGrad_{t}_{sm}_{sa}': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t, m=m, a=a, **kwargs))
            for t in types for sm, m in m_dict.items() for sa, a in a_dict.items()},
+        # **{f'CoBAMSGrad2_{t}': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t)) for t in types},
+        # **{f'CoBAMSGrad_{t}(const)': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
+        # **{f'CoBAMSGrad2_{t}(const)': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
+        # Momentum_Existing=(SGD, dict(lr=lr, momentum=.9, **kwargs)),
+        AdaGrad_Existing=(optim.Adagrad, dict(lr=lr, **kwargs)),
+        RMSProp_Existing=(optim.RMSprop, dict(lr=lr, **kwargs)),
+    )
+    if optimizer:
+        return {optimizer: optimizers[optimizer]}
+    else:
+        return optimizers
+
+
+def _prepare_optimizers(lr: float, optimizer: str = None, **kwargs) -> OptimizerDict:
+    types = ('HS', 'FR', 'PRP', 'DY', 'HZ')
+    m_dict = dict(m2=1e-2, m3=1e-3, m4=1e-4)
+    a_dict = dict(a4=1+1e-4, a5=1+1e-5, a6=1+1e-6, a7=1+1e-7)
+    type_dict = dict(
+        HZ=('m2', 'a4'),
+        HS=('m5', 'a5'),
+        FR=('m2', 'a5'),
+        PRP=('m4', 'a4'),
+        DY=('m3', 'a7'),
+    )
+    optimizers = dict(
+        # AMSGrad_ExistingTorch=(optim.Adam, dict(lr=lr, amsgrad=True, **kwargs)),
+        AMSGrad_Existing=(Adam, dict(lr=lr, amsgrad=True, **kwargs)),
+        Adam_Existing=(Adam, dict(lr=lr, amsgrad=False, **kwargs)),
+        **{f'CoBAMSGrad_{t}_{sm}_{sa}': (CoBA,
+                                         dict(lr=lr, amsgrad=True, cg_type=t, m=m_dict[sm], a=a_dict[sa], **kwargs))
+           for t, (sm, sa) in type_dict.items()},
         # **{f'CoBAMSGrad2_{t}': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t)) for t in types},
         # **{f'CoBAMSGrad_{t}(const)': (CoBA, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
         # **{f'CoBAMSGrad2_{t}(const)': (CoBA2, dict(lr=lr, amsgrad=True, cg_type=t, **kw_const)) for t in types},
@@ -81,7 +112,7 @@ def avazu(max_epoch=40, lr=1e-4, batch_size=2048, num_workers=0, use_scheduler=F
     e.execute(optimizers)
 
 
-def imdb(lr=1e-3, max_epoch=100, weight_decay=.0, batch_size=32, use_scheduler=False, **kwargs) -> None:
+def imdb(lr=1e-2, max_epoch=100, weight_decay=.0, batch_size=32, use_scheduler=False, **kwargs) -> None:
     optimizers = prepare_optimizers(lr=lr)
     e = ExperimentIMDb(max_epoch=max_epoch, batch_size=batch_size, **kwargs)
     e.execute(optimizers)

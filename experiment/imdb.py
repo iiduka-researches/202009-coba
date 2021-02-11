@@ -4,7 +4,7 @@ from typing import Tuple, Optional
 import torch
 from torch.nn import Embedding, Linear, LSTM, Module, BCEWithLogitsLoss
 from torch.optim.optimizer import Optimizer
-from torch.utils.data import DataLoader, Dataset
+from torch.utils import data
 from torchtext.data import BucketIterator, Field, LabelField
 from torchtext.datasets import IMDB
 
@@ -25,13 +25,14 @@ class ExperimentIMDb(BaseExperiment):
         self.label.build_vocab(self.train_data)
         self.vocab_size = len(self.text.vocab)
 
-    def prepare_data(self, train: bool, **kwargs) -> Dataset:
+    def prepare_data(self, train: bool, **kwargs) -> data.Dataset:
         pass
 
     def prepare_model(self, model_name: Optional[str], **kwargs) -> Module:
-        return Net(**kwargs)
+        return Net(in_dim=self.vocab_size, **kwargs)
 
-    def epoch_train(self, net: Module, optimizer: Optimizer, train_loader: DataLoader) -> Tuple[Module, ResultDict]:
+    def epoch_train(self, net: Module, optimizer: Optimizer,
+                    train_loader: data.DataLoader, **kwargs) -> Tuple[Module, ResultDict]:
         running_loss = 0.0
         i = 0
         total = 0
@@ -52,7 +53,7 @@ class ExperimentIMDb(BaseExperiment):
             i += 1
         return net, dict(train_loss=running_loss / i, train_accuracy=correct / total)
 
-    def epoch_validate(self, net: Module, test_loader: DataLoader, **kwargs) -> ResultDict:
+    def epoch_validate(self, net: Module, test_loader: data.DataLoader, **kwargs) -> ResultDict:
         running_loss = 0.0
         i = 0
         total = 0
@@ -71,12 +72,18 @@ class ExperimentIMDb(BaseExperiment):
                 i += 1
         return dict(test_loss=running_loss / i, test_accuracy=correct / total)
 
+    def prepare_loaders(self):
+        return BucketIterator.splits((self.train_data, self.test_data), batch_size=self.batch_size, device=self.device,
+                                     sort_key=lambda x: len(x.text), repeat=False)
+
 
 class Net(Module):
-    def __init__(self, in_dim: int, embedding_dim=50, hidden_size=50, num_layers=2, dropout=0.5) -> None:
+    def __init__(self, in_dim: int, embedding_dim=50, hidden_size=50, num_layers=2, dropout=0.5,
+                 bidirectional=False) -> None:
         super().__init__()
         self.emb = Embedding(in_dim, embedding_dim, padding_idx=0)
-        self.lstm = LSTM(embedding_dim, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=dropout)
+        self.lstm = LSTM(embedding_dim, hidden_size, num_layers, batch_first=True, bidirectional=bidirectional,
+                         dropout=dropout)
         self.linear = Linear(hidden_size * 2, 1)
 
     def forward(self, x):
