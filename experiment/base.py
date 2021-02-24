@@ -156,14 +156,6 @@ class BaseExperiment(ABC, metaclass=ABCMeta):
 
             # torch.save(net.state_dict(), os.path.join(checkpoint_dir, f'model_{self.max_epoch}'))
             # torch.save(optimizer.state_dict(), os.path.join(checkpoint_dir, f'optimizer_{self.max_epoch}'))
-
-            # Expect error between Stochastic CG and Deterministic CG
-            """
-            if type(optimizer) in (CoBA, CoBA2):
-                s = '\n'.join([str(e) for e in optimizer.scg_expect_errors])
-                with open(os.path.join(self.result_dir, f'scg_expect_errors_{name}.csv'), 'w') as f:
-                    f.write(s)
-            """
             notify(f'finish: {name}.')
 
 
